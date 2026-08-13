@@ -1,0 +1,85 @@
+// Bier App – Datenmodell
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  attendances Attendance[]
+  assignments KastenAssignment[]
+}
+
+model Match {
+  id          String   @id @default(cuid())
+  date        DateTime
+  opponent    String?
+  location    String?
+  isHome      Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  attendances Attendance[]
+  assignments KastenAssignment[]
+}
+
+enum AttendanceStatus {
+  ZUSAGE
+  ABSAGE
+  UNKNOWN
+}
+
+enum AttendanceSource {
+  MANUAL
+  SPIELERPLUS
+}
+
+model Attendance {
+  id        String            @id @default(cuid())
+  matchId   String
+  playerId  String
+  status    AttendanceStatus  @default(UNKNOWN)
+  source    AttendanceSource  @default(MANUAL)
+  updatedAt DateTime          @updatedAt
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playerId])
+}
+
+model KastenAssignment {
+  id          String   @id @default(cuid())
+  matchId     String
+  playerId    String
+  reason      String?
+  fulfilled   Boolean  @default(false)
+  fulfilledAt DateTime?
+  createdAt   DateTime @default(now())
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model Settings {
+  id             Int    @id @default(1)
+  cooldownWeeks  Int    @default(6)
+  kastenPerMatch Int    @default(2)
+}
+
+model SpielerplusConfig {
+  id          Int      @id @default(1)
+  teamUrl     String?
+  lastSyncAt  DateTime?
+  lastSyncOk  Boolean  @default(false)
+  lastSyncMsg String?
+}
