@@ -13,7 +13,6 @@ aktuellen Stand ohne Login einsehen; nur der Admin-Bereich ist geschützt.
 - **Tailwind CSS 4** – Vereinsfarben Grün/Weiß mit Bier-Gold als Akzent
 - **Prisma 7 + Postgres** (`@prisma/adapter-pg` Treiber) – läuft mit jedem
   Postgres-Anbieter (Vercel Postgres/Neon, Prisma Postgres, Supabase, lokal, …)
-- **Playwright** (optional) – für den experimentellen Spielerplus-Sync
 
 ## Lokal starten
 
@@ -59,33 +58,28 @@ dann manuell im Admin-Bereich gepflegt.
    separate Google-Notes-Liste – die Begründungen leben jetzt direkt in der
    Kasten-Historie unter `/verlauf` bzw. Admin → Kasten-Historie).
 
-## Spielerplus-Sync (experimentell)
+## Spielerplus-Sync
 
-Spielerplus bietet keine offizielle öffentliche API. Der Sync-Button im
-Admin-Bereich einer Spiel-Seite loggt sich deshalb inoffiziell mit deinem
-eigenen Spielerplus-Account per Headless-Browser (Playwright) ein, sucht das
-passende Spiel anhand des Datums und liest die Zusagen/Absagen aus.
+Spielerplus bietet keine offizielle öffentliche API. Ein automatischer
+Login+Scraping-Sync (per Playwright/Chromium) wurde gebaut, musste aber
+wieder entfernt werden: Next.js bindet `playwright-core` schon beim Build
+fest in die serverseitige Funktion ein, sobald das Paket irgendwo im Code
+vorkommt (auch bei bedingtem/dynamischem Import) – auf Vercel führte das
+dazu, dass **die gesamte App** mit „Cannot find module" abstürzte, nicht nur
+der Sync selbst. Da auf Vercel ohnehin kein Chromium-Browser installiert
+ist, wurde die Automatisierung aus dem Deployment entfernt.
 
-**Wichtig:** Dieses Modul (`src/lib/spielerplus.ts`) wurde entwickelt, ohne
-gegen die echte Spielerplus-Seite testen zu können (die Entwicklungsumgebung
-hatte keinen Zugriff auf spielerplus.de). Die Selektoren basieren auf
-üblichen Konventionen für Login-Formulare und Tabellen und müssen mit hoher
-Wahrscheinlichkeit **einmalig nachjustiert werden**, sobald du sie gegen den
-echten Account testest. Schlägt der Sync fehl, bekommst du eine Fehlermeldung
-im Admin-Bereich – die Anwesenheit lässt sich davon unabhängig jederzeit
-manuell über die drei Buttons (Zusage/Absage/Offen) pro Spieler pflegen, das
-ist der voll unterstützte Standardweg.
+Der Sync-Button im Admin-Bereich zeigt aktuell nur einen Hinweis, dass er in
+diesem Hosting nicht verfügbar ist. **Die Anwesenheitspflege funktioniert
+davon unabhängig jederzeit voll über die drei Buttons (Zusage/Absage/Offen)
+pro Spieler** – das ist der unterstützte Standardweg.
 
-Voraussetzungen für den Sync:
-- `SPIELERPLUS_EMAIL` und `SPIELERPLUS_PASSWORD` gesetzt
-- Team-/Spielplan-URL unter Admin → Einstellungen hinterlegt
-- Ein installierter Chromium-Browser auf dem Server. Pfad optional über
-  `PLAYWRIGHT_CHROMIUM_EXECUTABLE` angeben, sonst werden gängige Standardpfade
-  (`/usr/bin/chromium`, `/usr/bin/google-chrome-stable`, …) probiert.
-
-Falls die Selektoren angepasst werden müssen: Login-Logik in
-`loginToSpielerplus()`, das Finden/Parsen des Spiels in
-`findMatchAttendance()` – beides in `src/lib/spielerplus.ts`.
+Für später, falls die Automatisierung doch noch gewünscht ist: am
+sinnvollsten als separater kleiner Dienst außerhalb von Vercel (z. B. ein
+eigener kleiner Server oder ein geplanter Job auf einem Anbieter mit
+persistenter Node-Umgebung und installiertem Chromium), der die Anwesenheit
+per API/Datenbankzugriff in die Bier App zurückschreibt, statt in derselben
+Vercel-Funktion zu laufen.
 
 ## Deployment auf Vercel
 
@@ -100,14 +94,14 @@ Falls die Selektoren angepasst werden müssen: Login-Logik in
    - `ADMIN_PASSWORD` – dein Admin-Passwort
    - `SESSION_SECRET` – langer Zufallsstring
    - optional `SPIELERPLUS_EMAIL`, `SPIELERPLUS_PASSWORD`, `SPIELERPLUS_TEAM_URL`
-4. **Migrationen anwenden**: einmalig `npx prisma migrate deploy` mit der
-   produktiven `DATABASE_URL` ausführen (z. B. lokal mit der Vercel-DB-URL in
-   `.env`, oder als Vercel Build-Command-Zusatz `prisma migrate deploy && next build`).
-5. **Deploy auslösen** – danach automatisch bei jedem Push auf den verbundenen Branch.
-
-Der Spielerplus-Sync (Playwright/Chromium) läuft auf Vercels Serverless-Umgebung
-nicht ohne Weiteres (kein vorinstalliertes Chromium, Zeitlimits) – bis auf
-Weiteres also Anwesenheit dort manuell pflegen, das ist voll unterstützt.
+4. **Deploy auslösen** – danach automatisch bei jedem Push auf den verbundenen Branch.
+5. **Datenbank einmalig einrichten**: einloggen unter `/admin`, zu
+   **Einstellungen** gehen und auf **„Datenbank einmalig einrichten"**
+   klicken. (`prisma migrate deploy` lief bei uns im Vercel-Build zuverlässig
+   auf einen Verbindungsfehler zur Datenbank – die Build-Umgebung scheint
+   dort anderen Netzwerkzugriff zu haben als die Serverless-Function-Laufzeit.
+   Die Einrichtung läuft deshalb einmalig zur Laufzeit über diesen Button,
+   der direkt den bestehenden Prisma-Client nutzt.)
 
 ## Projektstruktur (Kurzüberblick)
 
