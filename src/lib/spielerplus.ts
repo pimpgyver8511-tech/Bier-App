@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { chromium, type Page } from "playwright-core";
+import type { Page } from "playwright-core";
 import fs from "fs";
 
 export type SpielerplusSyncResult = {
@@ -51,6 +51,26 @@ export async function runSpielerplusSync(
         "Kein Chromium gefunden. Fuer den automatischen Sync muss auf dem Server " +
         "ein Chromium-Browser installiert und PLAYWRIGHT_CHROMIUM_EXECUTABLE " +
         "gesetzt sein. Bis dahin: Anwesenheit manuell pflegen.",
+    };
+    await recordResult(result);
+    return result;
+  }
+
+  // Dynamischer Import: playwright-core ist eine schwere, browserabhaengige
+  // Abhaengigkeit, die in manchen Serverless-Umgebungen (z.B. Vercel ohne
+  // installiertes Chromium) nicht ladbar ist. Statischer Import wuerde dann
+  // die gesamte App zum Absturz bringen, da spielerplus.ts von actions.ts
+  // (und damit praktisch jeder Seite) importiert wird.
+  let chromium: typeof import("playwright-core").chromium;
+  try {
+    ({ chromium } = await import("playwright-core"));
+  } catch (err) {
+    const result: SpielerplusSyncResult = {
+      ok: false,
+      message:
+        "playwright-core konnte in dieser Umgebung nicht geladen werden " +
+        "(" + (err instanceof Error ? err.message : String(err)) + "). " +
+        "Der automatische Sync ist hier nicht verfuegbar - Anwesenheit manuell pflegen.",
     };
     await recordResult(result);
     return result;
