@@ -1,15 +1,45 @@
 import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { createPlayerAction, togglePlayerActiveAction, deletePlayerAction } from "@/lib/actions";
+import {
+  createPlayerAction,
+  bulkImportPlayersAction,
+  togglePlayerActiveAction,
+  deletePlayerAction,
+} from "@/lib/actions";
 
 export default async function PlayersPage() {
   if (!(await isAdmin())) redirect("/admin");
 
-  const players = await prisma.player.findMany({
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { _count: { select: { assignments: true } } },
-  });
+  let players: Awaited<ReturnType<typeof prisma.player.findMany>> = [];
+  let counts = new Map<string, number>();
+  let dbReady = true;
+  try {
+    const rows = await prisma.player.findMany({
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      include: { _count: { select: { assignments: true } } },
+    });
+    players = rows;
+    counts = new Map(rows.map((p) => [p.id, p._count.assignments]));
+  } catch {
+    dbReady = false;
+  }
+
+  if (!dbReady) {
+    return (
+      <div className="card p-5 sm:p-6 space-y-2">
+        <h1 className="font-bold text-lg">⚠️ Datenbank noch nicht eingerichtet</h1>
+        <p className="text-sm text-muted">
+          Bitte zuerst unter{" "}
+          <Link href="/admin/settings" className="text-brand font-semibold hover:underline">
+            Einstellungen
+          </Link>{" "}
+          einrichten.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -31,6 +61,23 @@ export default async function PlayersPage() {
         </button>
       </form>
 
+      <details className="card p-4">
+        <summary className="cursor-pointer font-semibold text-sm">
+          Mehrere Spieler auf einmal einfügen
+        </summary>
+        <form action={bulkImportPlayersAction} className="mt-3 space-y-2">
+          <textarea
+            name="names"
+            rows={8}
+            placeholder={"Ein Name pro Zeile, z. B.\nMax Mustermann\nErik Schmidt\n..."}
+            className="input"
+          />
+          <button type="submit" className="btn btn-primary text-sm">
+            Alle importieren
+          </button>
+        </form>
+      </details>
+
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -45,7 +92,7 @@ export default async function PlayersPage() {
             {players.map((p) => (
               <tr key={p.id} className="border-b border-border last:border-0">
                 <td className="px-5 sm:px-6 py-3 font-medium">{p.name}</td>
-                <td className="px-3 py-3 text-muted">{p._count.assignments}×</td>
+                <td className="px-3 py-3 text-muted">{counts.get(p.id) ?? 0}×</td>
                 <td className="px-3 py-3">
                   {p.active ? (
                     <span className="badge badge-green">aktiv</span>

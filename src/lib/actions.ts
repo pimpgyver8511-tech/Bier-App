@@ -48,6 +48,30 @@ export async function createPlayerAction(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function bulkImportPlayersAction(formData: FormData) {
+  await requireAdmin();
+  const raw = String(formData.get("names") ?? "");
+  const names = Array.from(
+    new Set(
+      raw
+        .split("\n")
+        .map((n) => n.trim())
+        .filter(Boolean)
+    )
+  );
+
+  for (const name of names) {
+    await prisma.player.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+  revalidatePath("/admin/players");
+  revalidatePath("/");
+}
+
 export async function togglePlayerActiveAction(playerId: string, active: boolean) {
   await requireAdmin();
   await prisma.player.update({ where: { id: playerId }, data: { active } });
