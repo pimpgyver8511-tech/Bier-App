@@ -11,15 +11,20 @@ aktuellen Stand ohne Login einsehen; nur der Admin-Bereich ist geschützt.
 
 - **Next.js 16** (App Router, TypeScript, Server Actions)
 - **Tailwind CSS 4** – Vereinsfarben Grün/Weiß mit Bier-Gold als Akzent
-- **Prisma 7 + SQLite** (`better-sqlite3` Treiber) – eine Datei, kein externer DB-Server nötig
+- **Prisma 7 + Postgres** (`@prisma/adapter-pg` Treiber) – läuft mit jedem
+  Postgres-Anbieter (Vercel Postgres/Neon, Prisma Postgres, Supabase, lokal, …)
 - **Playwright** (optional) – für den experimentellen Spielerplus-Sync
 
 ## Lokal starten
 
+Voraussetzung: eine erreichbare Postgres-Datenbank (lokal z. B. via Docker:
+`docker run -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16`).
+
 ```bash
 npm install
-cp .env.example .env      # Werte anpassen, siehe unten
-npx prisma db push        # legt prisma/dev.db an
+cp .env.example .env         # Werte anpassen, siehe unten
+npx prisma migrate dev       # legt Tabellen an
+npx prisma db seed           # optional: aktuellen Kader einspielen (prisma/seed.ts)
 npm run dev
 ```
 
@@ -30,7 +35,7 @@ Admin-Bereich unter `/admin` (Login mit `ADMIN_PASSWORD` aus der `.env`).
 
 | Variable | Pflicht | Beschreibung |
 |---|---|---|
-| `DATABASE_URL` | ja | SQLite-Datei, Standard `file:./prisma/dev.db` |
+| `DATABASE_URL` | ja | Postgres-Connection-String, z. B. `postgresql://user:pw@host:5432/db?schema=public` |
 | `ADMIN_PASSWORD` | ja | Passwort für den Admin-Bereich |
 | `SESSION_SECRET` | ja | Zufälliger String zum Signieren der Admin-Session |
 | `SPIELERPLUS_EMAIL` / `SPIELERPLUS_PASSWORD` | optional | Login für den automatischen Anwesenheits-Sync |
@@ -82,17 +87,27 @@ Falls die Selektoren angepasst werden müssen: Login-Logik in
 `loginToSpielerplus()`, das Finden/Parsen des Spiels in
 `findMatchAttendance()` – beides in `src/lib/spielerplus.ts`.
 
-## Deployment
+## Deployment auf Vercel
 
-Die App ist ein normales Next.js-Projekt mit lokaler SQLite-Datei, läuft also
-auf jedem Node-Server (z. B. eigener vServer, Fly.io, Railway). Wichtig:
+1. **Repo bei Vercel importieren**: [vercel.com/new](https://vercel.com/new) →
+   GitHub-Account verbinden → dieses Repo auswählen → Branch
+   `claude/bier-app-development-pblygb` (oder erst in `main` mergen).
+2. **Postgres-Datenbank anlegen**: im Vercel-Projekt unter *Storage* → *Create
+   Database* → Postgres (Neon-basiert, kostenloser Hobby-Tier reicht locker
+   für ein Vereins-Team). Vercel setzt `DATABASE_URL` dabei automatisch als
+   Umgebungsvariable im Projekt.
+3. **Weitere Umgebungsvariablen** unter *Settings → Environment Variables* setzen:
+   - `ADMIN_PASSWORD` – dein Admin-Passwort
+   - `SESSION_SECRET` – langer Zufallsstring
+   - optional `SPIELERPLUS_EMAIL`, `SPIELERPLUS_PASSWORD`, `SPIELERPLUS_TEAM_URL`
+4. **Migrationen anwenden**: einmalig `npx prisma migrate deploy` mit der
+   produktiven `DATABASE_URL` ausführen (z. B. lokal mit der Vercel-DB-URL in
+   `.env`, oder als Vercel Build-Command-Zusatz `prisma migrate deploy && next build`).
+5. **Deploy auslösen** – danach automatisch bei jedem Push auf den verbundenen Branch.
 
-- `npm run build && npm run start`
-- `prisma/dev.db` liegt auf einem persistenten Volume (kein ephemeres Dateisystem)
-- `.env` mit produktivem `ADMIN_PASSWORD` und `SESSION_SECRET` setzen
-- Für Vercel: SQLite-Dateien sind dort nicht persistent (read-only Filesystem
-  zur Laufzeit) – entweder auf eine gehostete Postgres-DB wechseln (Prisma
-  Adapter tauschen) oder einen Anbieter mit persistentem Dateisystem nutzen.
+Der Spielerplus-Sync (Playwright/Chromium) läuft auf Vercels Serverless-Umgebung
+nicht ohne Weiteres (kein vorinstalliertes Chromium, Zeitlimits) – bis auf
+Weiteres also Anwesenheit dort manuell pflegen, das ist voll unterstützt.
 
 ## Projektstruktur (Kurzüberblick)
 
