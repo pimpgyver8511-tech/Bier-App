@@ -2,14 +2,25 @@ import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { updateSettingsAction, updateSpielerplusUrlAction } from "@/lib/actions";
+import { DbSetupButton } from "./DbSetupButton";
 
 export default async function SettingsPage() {
   if (!(await isAdmin())) redirect("/admin");
 
-  const [settings, spielerplus] = await Promise.all([
-    prisma.settings.findUnique({ where: { id: 1 } }),
-    prisma.spielerplusConfig.findUnique({ where: { id: 1 } }),
-  ]);
+  // Tabellen existieren evtl. noch nicht (frisches Deployment vor der
+  // einmaligen Einrichtung) - Seite soll trotzdem rendern, damit der
+  // Einrichten-Button unten erreichbar ist.
+  let settings: Awaited<ReturnType<typeof prisma.settings.findUnique>> = null;
+  let spielerplus: Awaited<ReturnType<typeof prisma.spielerplusConfig.findUnique>> = null;
+  let dbReady = true;
+  try {
+    [settings, spielerplus] = await Promise.all([
+      prisma.settings.findUnique({ where: { id: 1 } }),
+      prisma.spielerplusConfig.findUnique({ where: { id: 1 } }),
+    ]);
+  } catch {
+    dbReady = false;
+  }
 
   const credentialsConfigured = Boolean(
     process.env.SPIELERPLUS_EMAIL && process.env.SPIELERPLUS_PASSWORD
@@ -20,6 +31,17 @@ export default async function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">Einstellungen</h1>
       </div>
+
+      {!dbReady && (
+        <section className="card p-5 sm:p-6 space-y-3 border-gold">
+          <h2 className="text-lg font-bold">⚠️ Datenbank noch nicht eingerichtet</h2>
+          <p className="text-sm text-muted">
+            Die Tabellen existieren noch nicht. Einmalig einrichten, danach funktioniert die
+            App normal (diese Seite lädt dann auch wieder alle Einstellungen).
+          </p>
+          <DbSetupButton />
+        </section>
+      )}
 
       <section className="card p-5 sm:p-6 space-y-4">
         <h2 className="text-lg font-bold">Kasten-Regeln</h2>

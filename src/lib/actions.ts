@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { runSpielerplusSync } from "@/lib/spielerplus";
+import { applyInitialSchema } from "@/lib/db-setup";
 
 async function requireAdmin() {
   if (!(await isAdmin())) {
@@ -202,4 +203,11 @@ export async function updateSpielerplusUrlAction(formData: FormData) {
     create: { id: 1, teamUrl },
   });
   revalidatePath("/admin/settings");
+}
+
+export async function runDbSetupAction() {
+  await requireAdmin();
+  const result = await applyInitialSchema();
+  revalidatePath("/admin/settings");
+  return result;
 }
