@@ -40,6 +40,8 @@ export async function createPlayerAction(formData: FormData) {
   await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
+  const existing = await prisma.player.findUnique({ where: { name } });
+  if (existing) return;
   await prisma.player.create({ data: { name } });
   revalidatePath("/admin/players");
   revalidatePath("/");
