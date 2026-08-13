@@ -41,11 +41,19 @@ export default async function AdminPage({
     return <LoginForm error={params.error as string | undefined} />;
   }
 
-  const [playerCount, matchCount, openAssignments] = await Promise.all([
-    prisma.player.count({ where: { active: true } }),
-    prisma.match.count(),
-    prisma.kastenAssignment.count({ where: { fulfilled: false } }),
-  ]);
+  let playerCount = 0;
+  let matchCount = 0;
+  let openAssignments = 0;
+  let dbReady = true;
+  try {
+    [playerCount, matchCount, openAssignments] = await Promise.all([
+      prisma.player.count({ where: { active: true } }),
+      prisma.match.count(),
+      prisma.kastenAssignment.count({ where: { fulfilled: false } }),
+    ]);
+  } catch {
+    dbReady = false;
+  }
 
   const tiles = [
     {
@@ -84,6 +92,18 @@ export default async function AdminPage({
         <h1 className="text-2xl font-bold">Admin-Bereich</h1>
         <p className="text-muted text-sm mt-1">Willkommen zurück!</p>
       </div>
+      {!dbReady && (
+        <div className="card p-5 sm:p-6 space-y-2">
+          <h2 className="font-bold">⚠️ Datenbank noch nicht eingerichtet</h2>
+          <p className="text-sm text-muted">
+            Bitte einmalig unter{" "}
+            <Link href="/admin/settings" className="text-brand font-semibold hover:underline">
+              Einstellungen
+            </Link>{" "}
+            einrichten.
+          </p>
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         {tiles.map((t) => (
           <Link key={t.href} href={t.href} className="card p-5 hover:border-brand transition block">
