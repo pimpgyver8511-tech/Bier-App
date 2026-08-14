@@ -66,7 +66,7 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
                   ) : p.nextScheduledLabel ? (
                     <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
                   ) : p.open ? (
-                    <span className="badge badge-green">🍺 hat einen offen</span>
+                    <span className="badge badge-green">✅ Keinen Kasten offen aktuell</span>
                   ) : (
                     <span className="badge badge-gray">
                       ⏳ noch {p.cooldownRemainingDays} Tage Pause

@@ -1,8 +1,7 @@
 import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { KastenLine } from "./KastenLine";
-import { AddKastenForm } from "./AddKastenForm";
+import { HistoryFilter } from "./HistoryFilter";
 import { AddKastenForNewPlayer } from "./AddKastenForNewPlayer";
 
 function toIsoDate(d: Date) {
@@ -50,7 +49,17 @@ export default async function AdminHistoryPage() {
     });
   }
   const groups = Array.from(byPlayer.entries())
-    .map(([playerId, g]) => ({ playerId, ...g }))
+    .map(([playerId, g]) => ({
+      playerId,
+      name: g.name,
+      totalCount: g.entries.length,
+      entries: g.entries.map((a) => ({
+        id: a.id,
+        matchDateIso: a.match ? toIsoDate(a.match.date) : null,
+        reason: a.reason ?? "",
+        fulfilled: a.fulfilled,
+      })),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -64,32 +73,11 @@ export default async function AdminHistoryPage() {
 
       <AddKastenForNewPlayer players={players} />
 
-      <div className="space-y-4">
-        {groups.map((g) => (
-          <div key={g.playerId} className="card p-4">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <h2 className="font-bold">
-                {g.name} <span className="text-muted font-normal text-sm">({g.entries.length}×)</span>
-              </h2>
-              <AddKastenForm playerId={g.playerId} />
-            </div>
-            <div>
-              {g.entries.map((a) => (
-                <KastenLine
-                  key={a.id}
-                  id={a.id}
-                  matchDateIso={a.match ? toIsoDate(a.match.date) : null}
-                  reason={a.reason ?? ""}
-                  fulfilled={a.fulfilled}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-        {groups.length === 0 && (
-          <p className="text-muted text-center py-6">Noch keine Einträge.</p>
-        )}
-      </div>
+      {groups.length === 0 ? (
+        <p className="text-muted text-center py-6">Noch keine Einträge.</p>
+      ) : (
+        <HistoryFilter groups={groups} />
+      )}
     </div>
   );
 }
