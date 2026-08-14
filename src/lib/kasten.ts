@@ -139,18 +139,33 @@ export type PlayerOverviewEntry = {
   totalKasten: number;
   pendingCount: number;
   pendingReasons: string[];
+  scheduledCount: number;
+  nextScheduledLabel: string | null; // z.B. "bringt am 17.08."
   lastFulfilledDate: Date | null;
   daysSinceLast: number | null;
   open: boolean; // hat ausstehende Kaesten ODER Cooldown seit letztem erfuellten ist abgelaufen
   cooldownRemainingDays: number | null;
 };
 
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
+
 /**
  * Uebersicht je Spieler unabhaengig von einem konkreten Spiel: wie oft schon
- * (tatsaechlich erfuellt) mitgebracht, wie viele Kaesten aktuell noch
- * ausstehen, und ob der Cooldown seit dem letzten erfuellten Kasten
- * abgelaufen ist. "insgesamt" zaehlt alle Zuweisungen (erfuellt + ausstehend),
- * damit die Uebersicht 1:1 dem entspricht, was im Admin-Bereich gepflegt ist.
+ * (tatsaechlich erfuellt) mitgebracht, wie viele Kaesten aktuell noch wirklich
+ * offen sind (kein Spieltag oder Spieltag liegt in der Vergangenheit - also
+ * ein ungeklaerter Alt-Fall), wie viele bereits fuer ein kommendes Spiel
+ * eingeplant sind (schon jemandem zugeteilt, aber noch nicht geliefert -
+ * zaehlt bewusst NICHT als "ausstehend", weil schon geklaert ist, wer ihn
+ * mitbringt und wann), und ob der Cooldown seit dem letzten erfuellten
+ * Kasten abgelaufen ist. "insgesamt" zaehlt alle Zuweisungen (erfuellt +
+ * ausstehend + eingeplant), damit die Uebersicht 1:1 dem entspricht, was im
+ * Admin-Bereich gepflegt ist.
  */
 export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
   const [settings, players, assignments] = await Promise.all([
@@ -164,10 +179,16 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
 
   const byPlayer = new Map<
     string,
-    { total: number; pending: number; pendingReasons: string[]; lastFulfilled: Date | null }
+    {
+      total: number;
+      pending: number;
+      pendingReasons: string[];
+      scheduled: Date[];
+      lastFulfilled: Date | null;
+    }
   >();
   for (const p of players)
-    byPlayer.set(p.id, { total: 0, pending: 0, pendingReasons: [], lastFulfilled: null });
+    byPlayer.set(p.id, { total: 0, pending: 0, pendingReasons: [], scheduled: [], lastFulfilled: null });
 
   for (const a of assignments) {
     const entry = byPlayer.get(a.playerId);
@@ -178,6 +199,8 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
       if (!entry.lastFulfilled || effectiveDate.getTime() > entry.lastFulfilled.getTime()) {
         entry.lastFulfilled = effectiveDate;
       }
+    } else if (a.match && a.match.date.getTime() > now.getTime()) {
+      entry.scheduled.push(a.match.date);
     } else {
       entry.pending += 1;
       entry.pendingReasons.push(a.reason || "Kein Grund angegeben");
@@ -194,6 +217,7 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
         ? cooldownMs - (now.getTime() - info.lastFulfilled.getTime())
         : 0;
       const cooldownOk = !info.lastFulfilled || cooldownRemainingMs <= 0;
+      info.scheduled.sort((a, b) => a.getTime() - b.getTime());
 
       return {
         playerId: p.id,
@@ -201,6 +225,9 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
         totalKasten: info.total,
         pendingCount: info.pending,
         pendingReasons: info.pendingReasons,
+        scheduledCount: info.scheduled.length,
+        nextScheduledLabel:
+          info.scheduled.length > 0 ? `bringt am ${formatShortDate(info.scheduled[0])}` : null,
         lastFulfilledDate: info.lastFulfilled,
         daysSinceLast,
         open: info.pending > 0 || cooldownOk,

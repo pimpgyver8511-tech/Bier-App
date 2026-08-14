@@ -13,6 +13,8 @@
   --gold: #e8a93c;
   --gold-dark: #c98a1f;
   --danger: #c0392b;
+  --info: #dbe9f5;
+  --info-dark: #2f6690;
 }
 
 @theme inline {
@@ -27,6 +29,8 @@
   --color-gold: var(--gold);
   --color-gold-dark: var(--gold-dark);
   --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-info-dark: var(--info-dark);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -126,6 +130,10 @@ body {
   .badge-red {
     background: #fbe4e1;
     color: var(--danger);
+  }
+  .badge-blue {
+    background: var(--info);
+    color: var(--info-dark);
   }
 
   .input {

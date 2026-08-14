@@ -54,6 +54,8 @@ export default async function HomePage() {
     totalKasten: p.totalKasten,
     pendingCount: p.pendingCount,
     pendingReasons: p.pendingReasons,
+    scheduledCount: p.scheduledCount,
+    nextScheduledLabel: p.nextScheduledLabel,
     open: p.open,
     cooldownRemainingDays: p.cooldownRemainingDays,
   }));
@@ -110,9 +112,12 @@ export default async function HomePage() {
                 {nextMatch.assignments.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {nextMatch.assignments.map((a) => (
-                      <span key={a.id} className="badge badge-gold text-sm px-3 py-1">
-                        🍻 {a.player.name}
-                      </span>
+                      <div key={a.id} className="rounded-xl bg-[#fbeed2] px-3 py-1.5">
+                        <p className="text-sm font-semibold text-gold-dark">🍻 {a.player.name}</p>
+                        {a.reason && (
+                          <p className="text-xs text-muted mt-0.5">{a.reason}</p>
+                        )}
+                      </div>
                     ))}
                   </div>
                 ) : admin ? (

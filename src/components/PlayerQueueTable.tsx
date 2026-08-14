@@ -9,6 +9,8 @@ export type QueueRow = {
   totalKasten: number;
   pendingCount: number;
   pendingReasons: string[];
+  scheduledCount: number;
+  nextScheduledLabel: string | null;
   open: boolean;
   cooldownRemainingDays: number | null;
 };
@@ -61,6 +63,8 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
                     >
                       🍺 {p.pendingCount}× ausstehend
                     </button>
+                  ) : p.nextScheduledLabel ? (
+                    <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
                   ) : p.open ? (
                     <span className="badge badge-green">🍺 hat einen offen</span>
                   ) : (
