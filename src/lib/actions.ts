@@ -13,6 +13,7 @@ import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { syncMatchScheduleFromIcs, importAttendanceFromCsv } from "@/lib/spielerplus";
 import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
+import { withBerlinTime } from "@/lib/timezone";
 
 async function requireAdmin() {
   if (!(await isAdmin())) {
@@ -251,12 +252,25 @@ export async function updateAssignmentReasonAction(
 export async function setAssignmentDateAction(assignmentId: string, dateStr: string) {
   await requireAdmin();
   if (!dateStr) return;
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return;
 
-  let match = await prisma.match.findFirst({ where: { date } });
+  // dateStr kommt aus einem reinen <input type="date"> (Kalendertag ohne
+  // Uhrzeit) und soll den Kalendertag in Berliner Ortszeit treffen. Ein
+  // exakter Zeitpunkt-Abgleich (wie zuvor) fand nie ein bereits per
+  // ICS/Spielerplus synchronisiertes Spiel (die haben eine echte Anstosszeit,
+  // z.B. 19:00), wodurch fuer denselben Tag ein zweites, leeres Spiel um
+  // 00:00 UTC angelegt wurde - Zusagen/Kasten liefen dann auseinander.
+  // Deshalb hier auf den ganzen Kalendertag suchen statt auf die exakte Uhrzeit.
+  const dayStart = withBerlinTime(new Date(Date.UTC(y, m - 1, d)), 0, 0);
+  const dayEnd = withBerlinTime(new Date(Date.UTC(y, m - 1, d)), 23, 59);
+
+  let match = await prisma.match.findFirst({
+    where: { date: { gte: dayStart, lte: dayEnd } },
+    orderBy: { date: "asc" },
+  });
   if (!match) {
-    match = await prisma.match.create({ data: { date } });
+    match = await prisma.match.create({ data: { date: dayStart } });
   }
 
   await prisma.kastenAssignment.update({
@@ -264,6 +278,7 @@ export async function setAssignmentDateAction(assignmentId: string, dateStr: str
     data: { matchId: match.id },
   });
   revalidatePath("/admin/history");
+  revalidatePath("/admin/matches");
   revalidatePath("/");
 }
 
