@@ -200,6 +200,20 @@ export async function updateAssignmentReasonAction(
   revalidatePath("/");
 }
 
+export async function addManualKastenAction(playerId: string, reason: string) {
+  await requireAdmin();
+  await prisma.kastenAssignment.create({
+    data: {
+      playerId,
+      reason: reason.trim() || null,
+      fulfilled: false,
+    },
+  });
+  revalidatePath("/admin/history");
+  revalidatePath("/verlauf");
+  revalidatePath("/");
+}
+
 export async function getSuggestionAction(matchId: string) {
   await requireAdmin();
   return buildAssignmentSuggestion(matchId);

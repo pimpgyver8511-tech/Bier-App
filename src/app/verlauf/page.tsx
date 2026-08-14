@@ -13,11 +13,20 @@ export default async function VerlaufPage() {
     include: { player: true, match: true },
   });
 
-  const sorted = [...assignments].sort((a, b) => {
-    const dateA = a.match?.date ?? a.fulfilledAt ?? a.createdAt;
-    const dateB = b.match?.date ?? b.fulfilledAt ?? b.createdAt;
-    return dateB.getTime() - dateA.getTime();
-  });
+  const byPlayer = new Map<string, { name: string; entries: typeof assignments }>();
+  for (const a of assignments) {
+    const entry = byPlayer.get(a.playerId) ?? { name: a.player.name, entries: [] };
+    entry.entries.push(a);
+    byPlayer.set(a.playerId, entry);
+  }
+  for (const group of byPlayer.values()) {
+    group.entries.sort((a, b) => {
+      const dateA = a.match?.date ?? a.fulfilledAt ?? a.createdAt;
+      const dateB = b.match?.date ?? b.fulfilledAt ?? b.createdAt;
+      return dateB.getTime() - dateA.getTime();
+    });
+  }
+  const groups = Array.from(byPlayer.values()).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
@@ -28,48 +37,39 @@ export default async function VerlaufPage() {
         </p>
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-border">
-                <th className="px-5 sm:px-6 py-2.5 font-medium">Datum</th>
-                <th className="px-3 py-2.5 font-medium">Spieler</th>
-                <th className="px-3 py-2.5 font-medium">Begründung</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((a) => (
-                <tr key={a.id} className="border-b border-border last:border-0 align-top">
-                  <td className="px-5 sm:px-6 py-3 whitespace-nowrap">
+      <div className="space-y-4">
+        {groups.map((g) => (
+          <div key={g.name} className="card p-4">
+            <h2 className="font-bold mb-2">
+              {g.name} <span className="text-muted font-normal text-sm">({g.entries.length}×)</span>
+            </h2>
+            <div>
+              {g.entries.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-3 py-1.5 border-b border-border last:border-0"
+                >
+                  <span className="text-xs text-muted whitespace-nowrap w-24 shrink-0">
                     {a.match
                       ? formatDate(a.match.date)
                       : a.fulfilled
                         ? formatDate(a.fulfilledAt ?? a.createdAt)
                         : "kein Spieltag"}
-                  </td>
-                  <td className="px-3 py-3 font-medium whitespace-nowrap">{a.player.name}</td>
-                  <td className="px-3 py-3 text-muted">{a.reason || "—"}</td>
-                  <td className="px-3 py-3">
-                    {a.fulfilled ? (
-                      <span className="badge badge-green">✅ erledigt</span>
-                    ) : (
-                      <span className="badge badge-gold">🍺 ausstehend</span>
-                    )}
-                  </td>
-                </tr>
+                  </span>
+                  <span className="text-sm flex-1">{a.reason || "—"}</span>
+                  {a.fulfilled ? (
+                    <span className="badge badge-green shrink-0">✅ erledigt</span>
+                  ) : (
+                    <span className="badge badge-gold shrink-0">🍺 ausstehend</span>
+                  )}
+                </div>
               ))}
-              {sorted.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-5 sm:px-6 py-6 text-center text-muted">
-                    Noch keine Einträge vorhanden.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+        ))}
+        {groups.length === 0 && (
+          <p className="text-muted text-center py-6">Noch keine Einträge vorhanden.</p>
+        )}
       </div>
     </div>
   );
