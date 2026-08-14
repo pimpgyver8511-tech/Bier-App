@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
+import { deleteAssignmentAction } from "@/lib/actions";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -112,10 +113,32 @@ export default async function HomePage() {
                 {nextMatch.assignments.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {nextMatch.assignments.map((a) => (
-                      <div key={a.id} className="rounded-xl bg-[#fbeed2] px-3 py-1.5">
-                        <p className="text-sm font-semibold text-gold-dark">🍻 {a.player.name}</p>
-                        {a.reason && (
-                          <p className="text-xs text-muted mt-0.5">{a.reason}</p>
+                      <div
+                        key={a.id}
+                        className="flex items-start gap-2 rounded-xl bg-[#fbeed2] pl-3 pr-2 py-1.5"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-gold-dark">🍻 {a.player.name}</p>
+                          {a.reason && (
+                            <p className="text-xs text-muted mt-0.5">{a.reason}</p>
+                          )}
+                        </div>
+                        {admin && (
+                          <form
+                            action={async () => {
+                              "use server";
+                              await deleteAssignmentAction(a.id);
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="text-gold-dark/60 hover:text-danger text-sm leading-none px-0.5"
+                              aria-label={`Zuteilung für ${a.player.name} entfernen`}
+                              title="Entfernen"
+                            >
+                              ✕
+                            </button>
+                          </form>
                         )}
                       </div>
                     ))}
