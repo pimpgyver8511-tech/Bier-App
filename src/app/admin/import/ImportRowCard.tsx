@@ -26,11 +26,41 @@ export function ImportRowCard({
 }) {
   const [isPending, startTransition] = useTransition();
   const [playerId, setPlayerId] = useState(suggestedPlayerId ?? "");
-  const [reason, setReason] = useState(initialReason);
-  const [count, setCount] = useState(initialCount);
+  // Jede Zeile = ein eigener Kasten mit eigener Begruendung. Anzahl der
+  // nicht-leeren Zeilen bestimmt, wie viele KastenAssignment-Eintraege
+  // entstehen - so lassen sich zusammengeschriebene Mehrfach-Kaesten
+  // (z.B. "X Kasten, Y Kasten, Z Kasten") sauber auf mehrere Zeilen
+  // aufteilen statt sie mit einer gemeinsamen Begruendung zu buendeln.
+  const [reasonLines, setReasonLines] = useState<string[]>(
+    initialCount > 1
+      ? Array.from({ length: initialCount }, (_, i) => (i === 0 ? initialReason : ""))
+      : [initialReason]
+  );
   const [error, setError] = useState<string | null>(null);
 
   const resolved = Boolean(suggestedPlayerId);
+  const filledCount = reasonLines.filter((r) => r.trim()).length || 1;
+
+  function updateLine(index: number, value: string) {
+    setReasonLines((prev) => prev.map((r, i) => (i === index ? value : r)));
+  }
+
+  function addLine() {
+    setReasonLines((prev) => [...prev, ""]);
+  }
+
+  function removeLine(index: number) {
+    setReasonLines((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }
+
+  function splitByCommas() {
+    const merged = reasonLines.join(", ");
+    const parts = merged
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    setReasonLines(parts.length > 0 ? parts : [""]);
+  }
 
   function confirm() {
     if (!playerId) {
@@ -39,7 +69,7 @@ export function ImportRowCard({
     }
     setError(null);
     startTransition(async () => {
-      await confirmImportRowAction(id, playerId, reason, count);
+      await confirmImportRowAction(id, playerId, reasonLines);
       onDone(id);
     });
   }
@@ -63,46 +93,72 @@ export function ImportRowCard({
         {!resolved && <span className="badge badge-gold">❓ ungeklärt</span>}
       </div>
 
-      <div className="grid sm:grid-cols-[1fr_auto] gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted block mb-1">Spieler</label>
-          <select
-            className="input"
-            value={playerId}
-            onChange={(e) => setPlayerId(e.target.value)}
-            disabled={isPending}
-          >
-            <option value="">— auswählen —</option>
-            {players.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted block mb-1">Anzahl</label>
-          <input
-            type="number"
-            min={1}
-            max={10}
-            className="input w-20"
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value) || 1)}
-            disabled={isPending}
-          />
-        </div>
+      <div>
+        <label className="text-xs font-medium text-muted block mb-1">Spieler</label>
+        <select
+          className="input"
+          value={playerId}
+          onChange={(e) => setPlayerId(e.target.value)}
+          disabled={isPending}
+        >
+          <option value="">— auswählen —</option>
+          {players.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
-        <label className="text-xs font-medium text-muted block mb-1">Begründung</label>
-        <input
-          type="text"
-          className="input"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-medium text-muted">
+            Begründung(en) – 1 Zeile = 1 Kasten ({filledCount}×)
+          </label>
+          {reasonLines.length === 1 && reasonLines[0].includes(",") && (
+            <button
+              type="button"
+              onClick={splitByCommas}
+              disabled={isPending}
+              className="text-xs text-brand font-semibold hover:underline"
+            >
+              bei Kommas aufteilen
+            </button>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          {reasonLines.map((line, i) => (
+            <div key={i} className="flex gap-1.5">
+              <input
+                type="text"
+                className="input"
+                value={line}
+                placeholder={`Begründung Kasten ${i + 1} (optional)`}
+                onChange={(e) => updateLine(i, e.target.value)}
+                disabled={isPending}
+              />
+              {reasonLines.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeLine(i)}
+                  disabled={isPending}
+                  className="btn btn-outline text-xs px-2.5"
+                  aria-label="Zeile entfernen"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={addLine}
           disabled={isPending}
-        />
+          className="text-xs text-brand font-semibold hover:underline mt-1.5"
+        >
+          + weiteren Kasten hinzufügen
+        </button>
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -114,7 +170,7 @@ export function ImportRowCard({
           disabled={isPending}
           className="btn btn-primary text-sm"
         >
-          Übernehmen
+          Übernehmen ({filledCount}×)
         </button>
         <button
           type="button"

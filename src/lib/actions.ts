@@ -271,13 +271,12 @@ export async function loadImportRowsAction() {
 export async function confirmImportRowAction(
   rowId: string,
   playerId: string,
-  reason: string,
-  count: number
+  reasons: string[]
 ) {
   await requireAdmin();
   const row = await prisma.kastenImportRow.findUniqueOrThrow({ where: { id: rowId } });
-  const safeCount = Math.max(1, Math.min(10, Math.floor(count) || 1));
-  const trimmedReason = reason.trim() || null;
+  const cleanReasons = reasons.map((r) => r.trim()).filter(Boolean);
+  const finalReasons = cleanReasons.length > 0 ? cleanReasons.slice(0, 10) : [null];
 
   if (row.source === "SEITE3") {
     if (!row.resolvedDate) throw new Error("Kein Datum fuer diese Zeile hinterlegt.");
@@ -286,19 +285,19 @@ export async function confirmImportRowAction(
       match = await prisma.match.create({ data: { date: row.resolvedDate } });
     }
     await prisma.kastenAssignment.createMany({
-      data: Array.from({ length: safeCount }, () => ({
+      data: finalReasons.map((reason) => ({
         matchId: match!.id,
         playerId,
-        reason: trimmedReason,
+        reason,
         fulfilled: true,
         fulfilledAt: row.resolvedDate!,
       })),
     });
   } else if (row.source === "GUTHABEN") {
     await prisma.kastenAssignment.createMany({
-      data: Array.from({ length: safeCount }, () => ({
+      data: finalReasons.map((reason) => ({
         playerId,
-        reason: trimmedReason,
+        reason,
         fulfilled: true,
         fulfilledAt: new Date(),
       })),
@@ -306,9 +305,9 @@ export async function confirmImportRowAction(
   } else {
     // OFFEN: noch nicht eingeloeste Alt-Schuld, kein Spieltag bekannt
     await prisma.kastenAssignment.createMany({
-      data: Array.from({ length: safeCount }, () => ({
+      data: finalReasons.map((reason) => ({
         playerId,
-        reason: trimmedReason,
+        reason,
         fulfilled: false,
       })),
     });
