@@ -19,7 +19,8 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
     });
   }
 
-  function toggle(playerId: string) {
+  function toggle(playerId: string, attending: boolean) {
+    if (!attending) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(playerId)) next.delete(playerId);
@@ -55,7 +56,8 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
     <div className="space-y-4">
       <p className="text-sm text-muted">
         Cooldown: {suggestion.cooldownWeeks} Wochen · {suggestion.kastenPerMatch} Kästen pro Spiel.
-        Vorausgewählt sind die anwesenden Spieler, die am längsten keinen Kasten mehr hatten.
+        Vorausgewählt sind die anwesenden Spieler, die am längsten keinen Kasten mehr hatten. Ein
+        Kasten kann nur Spielern zugeteilt werden, die für dieses Spiel zugesagt haben.
       </p>
 
       <div className="space-y-1.5">
@@ -63,14 +65,15 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
           <label
             key={c.playerId}
             className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg border ${
-              c.eligible ? "border-border" : "border-border opacity-50"
+              !c.attending ? "border-border opacity-40 cursor-not-allowed" : c.eligible ? "border-border" : "border-border opacity-50"
             } ${selected.has(c.playerId) ? "bg-brand-light border-brand" : "bg-white"}`}
           >
             <span className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={selected.has(c.playerId)}
-                onChange={() => toggle(c.playerId)}
+                disabled={!c.attending}
+                onChange={() => toggle(c.playerId, c.attending)}
                 className="w-4 h-4"
               />
               <span className="font-medium">{c.name}</span>

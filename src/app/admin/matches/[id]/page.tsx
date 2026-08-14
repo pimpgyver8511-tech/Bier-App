@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { AttendanceRow } from "./AttendanceRow";
+import { AttendanceCsvImport } from "./AttendanceCsvImport";
 import { AssignmentPicker } from "./AssignmentPicker";
 import { deleteAssignmentAction } from "@/lib/actions";
 
@@ -48,8 +49,9 @@ export default async function MatchDetailPage({
       </div>
 
       <section className="card">
-        <div className="px-5 sm:px-6 py-4 border-b border-border">
+        <div className="px-5 sm:px-6 py-4 border-b border-border flex items-start justify-between gap-4 flex-wrap">
           <h2 className="text-lg font-bold">Anwesenheit</h2>
+          <AttendanceCsvImport matchId={match.id} />
         </div>
         <table className="w-full text-sm">
           <tbody>

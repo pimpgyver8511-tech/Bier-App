@@ -125,3 +125,100 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
   });
   return { ok: true, message, created, updated };
 }
+
+export type CsvAttendanceImportResult = {
+  ok: boolean;
+  message: string;
+  matchedCount: number;
+  unmatchedNames: string[];
+};
+
+function parseCsvLine(line: string, delimiter = ";"): string[] {
+  const fields: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === delimiter) {
+      fields.push(cur);
+      cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+/**
+ * Spielerplus bietet keinen Bulk-Export der Zusagen, nur pro Spiel einen
+ * manuellen CSV-Export ("Teilnehmer exportieren"). Diese Datei enthaelt nur
+ * die Spieler, die bereits zugesagt haben (Spalte "user_name") - kein
+ * Live-Sync, sondern eine Momentaufnahme, die der Admin bei Bedarf erneut
+ * importieren kann. Bestehende manuelle Aenderungen (Absage/Offen) an
+ * Spielern, die NICHT in der Datei stehen, bleiben unangetastet.
+ */
+export async function importAttendanceFromCsv(
+  matchId: string,
+  csvText: string
+): Promise<CsvAttendanceImportResult> {
+  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    return { ok: false, message: "Keine Daten in der Datei gefunden.", matchedCount: 0, unmatchedNames: [] };
+  }
+
+  const header = parseCsvLine(lines[0]);
+  const nameIdx = header.indexOf("user_name");
+  if (nameIdx === -1) {
+    return {
+      ok: false,
+      message: "Spalte \"user_name\" nicht gefunden – unerwartetes Dateiformat.",
+      matchedCount: 0,
+      unmatchedNames: [],
+    };
+  }
+
+  const names = lines
+    .slice(1)
+    .map((line) => parseCsvLine(line)[nameIdx]?.trim())
+    .filter((n): n is string => Boolean(n));
+
+  const players = await prisma.player.findMany();
+  const playerByName = new Map(players.map((p) => [p.name.trim().toLowerCase(), p.id]));
+
+  let matchedCount = 0;
+  const unmatchedNames: string[] = [];
+  for (const name of names) {
+    const playerId = playerByName.get(name.toLowerCase());
+    if (!playerId) {
+      unmatchedNames.push(name);
+      continue;
+    }
+    await prisma.attendance.upsert({
+      where: { matchId_playerId: { matchId, playerId } },
+      update: { status: "ZUSAGE", source: "SPIELERPLUS" },
+      create: { matchId, playerId, status: "ZUSAGE", source: "SPIELERPLUS" },
+    });
+    matchedCount++;
+  }
+
+  const message =
+    `${matchedCount} Spieler als Zusage übernommen.` +
+    (unmatchedNames.length > 0
+      ? ` ${unmatchedNames.length} Name(n) nicht zugeordnet: ${unmatchedNames.join(", ")}`
+      : "");
+  return { ok: true, message, matchedCount, unmatchedNames };
+}

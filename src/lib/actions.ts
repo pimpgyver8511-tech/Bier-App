@@ -10,7 +10,7 @@ import {
   isAdmin,
 } from "@/lib/auth";
 import { buildAssignmentSuggestion } from "@/lib/kasten";
-import { syncMatchScheduleFromIcs } from "@/lib/spielerplus";
+import { syncMatchScheduleFromIcs, importAttendanceFromCsv } from "@/lib/spielerplus";
 import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
 
@@ -149,6 +149,19 @@ export async function setAttendanceAction(
   revalidatePath("/");
 }
 
+export async function importAttendanceCsvAction(matchId: string, formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("file");
+  if (!(file instanceof File)) {
+    return { ok: false, message: "Keine Datei ausgewählt.", matchedCount: 0, unmatchedNames: [] };
+  }
+  const text = await file.text();
+  const result = await importAttendanceFromCsv(matchId, text);
+  revalidatePath(`/admin/matches/${matchId}`);
+  revalidatePath("/");
+  return result;
+}
+
 // ---------- Kasten-Zuweisung ----------
 
 export async function confirmAssignmentAction(
@@ -157,8 +170,17 @@ export async function confirmAssignmentAction(
   reason: string
 ) {
   await requireAdmin();
+  // Ein Kasten kann nur zugeteilt werden, wenn der Spieler fuer dieses Spiel
+  // auch tatsaechlich zugesagt hat.
+  const attendances = await prisma.attendance.findMany({
+    where: { matchId, playerId: { in: playerIds }, status: "ZUSAGE" },
+    select: { playerId: true },
+  });
+  const attendingIds = new Set(attendances.map((a) => a.playerId));
+  const eligiblePlayerIds = playerIds.filter((id) => attendingIds.has(id));
+
   await prisma.$transaction(
-    playerIds.map((playerId) =>
+    eligiblePlayerIds.map((playerId) =>
       prisma.kastenAssignment.create({
         data: { matchId, playerId, reason: reason || null },
       })
