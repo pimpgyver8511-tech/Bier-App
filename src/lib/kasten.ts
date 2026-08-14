@@ -50,16 +50,27 @@ export async function buildAssignmentSuggestion(
   });
   const attendanceByPlayer = new Map(attendances.map((a) => [a.playerId, a]));
 
-  // letzte (fruehere) Kasten-Zuweisung je Spieler, unabhaengig vom aktuellen Spiel
+  // letzte (fruehere) Kasten-Zuweisung je Spieler, unabhaengig vom aktuellen Spiel.
+  // Nur Zuweisungen mit Spieltag (matchId gesetzt) oder tatsaechlich erfuellte
+  // Zuweisungen (z.B. importiertes Guthaben) zaehlen fuer Cooldown/Fairness -
+  // rein offene, undatierte Alt-Schulden ohne Spieltag verzerren sonst die
+  // Sortierung.
   const lastAssignments = await prisma.kastenAssignment.findMany({
-    where: { playerId: { in: players.map((p) => p.id) }, matchId: { not: matchId } },
+    where: {
+      playerId: { in: players.map((p) => p.id) },
+      AND: [
+        { OR: [{ matchId: null }, { matchId: { not: matchId } }] },
+        { OR: [{ matchId: { not: null } }, { fulfilled: true }] },
+      ],
+    },
     include: { match: true },
-    orderBy: { match: { date: "desc" } },
   });
   const lastAssignmentByPlayer = new Map<string, Date>();
   for (const a of lastAssignments) {
-    if (!lastAssignmentByPlayer.has(a.playerId)) {
-      lastAssignmentByPlayer.set(a.playerId, a.match.date);
+    const effectiveDate = a.match?.date ?? a.fulfilledAt ?? a.createdAt;
+    const current = lastAssignmentByPlayer.get(a.playerId);
+    if (!current || effectiveDate.getTime() > current.getTime()) {
+      lastAssignmentByPlayer.set(a.playerId, effectiveDate);
     }
   }
 
@@ -135,7 +146,10 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
   const [settings, players, assignments] = await Promise.all([
     getSettings(),
     prisma.player.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
-    prisma.kastenAssignment.findMany({ include: { match: true } }),
+    prisma.kastenAssignment.findMany({
+      where: { OR: [{ matchId: { not: null } }, { fulfilled: true }] },
+      include: { match: true },
+    }),
   ]);
 
   const now = new Date();
@@ -148,8 +162,9 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
     const entry = byPlayer.get(a.playerId);
     if (!entry) continue;
     entry.count += 1;
-    if (!entry.last || a.match.date.getTime() > entry.last.getTime()) {
-      entry.last = a.match.date;
+    const effectiveDate = a.match?.date ?? a.fulfilledAt ?? a.createdAt;
+    if (!entry.last || effectiveDate.getTime() > entry.last.getTime()) {
+      entry.last = effectiveDate;
     }
   }
 

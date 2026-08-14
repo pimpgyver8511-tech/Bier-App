@@ -12,7 +12,11 @@ export default async function AdminHistoryPage() {
 
   const assignments = await prisma.kastenAssignment.findMany({
     include: { player: true, match: true },
-    orderBy: { match: { date: "desc" } },
+  });
+  assignments.sort((a, b) => {
+    const dateA = a.match?.date ?? a.fulfilledAt ?? a.createdAt;
+    const dateB = b.match?.date ?? b.fulfilledAt ?? b.createdAt;
+    return dateB.getTime() - dateA.getTime();
   });
 
   return (
@@ -40,7 +44,13 @@ export default async function AdminHistoryPage() {
                 key={a.id}
                 id={a.id}
                 playerName={a.player.name}
-                matchDate={formatDate(a.match.date)}
+                matchDate={
+                  a.match
+                    ? formatDate(a.match.date)
+                    : a.fulfilled
+                      ? formatDate(a.fulfilledAt ?? a.createdAt)
+                      : "kein Spieltag"
+                }
                 reason={a.reason ?? ""}
                 fulfilled={a.fulfilled}
               />

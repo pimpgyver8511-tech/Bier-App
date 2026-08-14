@@ -17,6 +17,7 @@ model Player {
 
   attendances Attendance[]
   assignments KastenAssignment[]
+  importRows  KastenImportRow[]
 }
 
 model Match {
@@ -59,15 +60,40 @@ model Attendance {
 
 model KastenAssignment {
   id          String   @id @default(cuid())
-  matchId     String
+  matchId     String?
   playerId    String
   reason      String?
   fulfilled   Boolean  @default(false)
   fulfilledAt DateTime?
   createdAt   DateTime @default(now())
 
-  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  match  Match?  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+enum ImportSource {
+  SEITE3
+  OFFEN
+  GUTHABEN
+}
+
+// Zwischenspeicher fuer den Import der alten, handisch gepflegten
+// Kasten-Historie (siehe docs/kasten-historie-import.md). Wird ueber
+// Admin > Import befuellt, Zeile fuer Zeile geprueft/korrigiert und dann
+// in echte Match+KastenAssignment-Eintraege umgewandelt.
+model KastenImportRow {
+  id           String       @id @default(cuid())
+  source       ImportSource
+  rawDate      String?
+  resolvedDate DateTime?
+  nickname     String
+  reason       String?
+  count        Int          @default(1)
+  suggestedPlayerId String?
+  playerId     String?
+  createdAt    DateTime     @default(now())
+
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
 }
 
 model Settings {

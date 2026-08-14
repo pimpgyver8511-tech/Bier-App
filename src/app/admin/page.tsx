@@ -44,12 +44,14 @@ export default async function AdminPage({
   let playerCount = 0;
   let matchCount = 0;
   let openAssignments = 0;
+  let importRowCount = 0;
   let dbReady = true;
   try {
-    [playerCount, matchCount, openAssignments] = await Promise.all([
+    [playerCount, matchCount, openAssignments, importRowCount] = await Promise.all([
       prisma.player.count({ where: { active: true } }),
       prisma.match.count(),
       prisma.kastenAssignment.count({ where: { fulfilled: false } }),
+      prisma.kastenImportRow.count(),
     ]);
   } catch {
     dbReady = false;
@@ -83,6 +85,13 @@ export default async function AdminPage({
       desc: "Cooldown, Anzahl Kästen pro Spiel, Spielerplus-Sync",
       icon: "⚙️",
       stat: "",
+    },
+    {
+      href: "/admin/import",
+      title: "Import",
+      desc: "Alte Kasten-Historie prüfen, Spieler zuordnen, übernehmen",
+      icon: "📥",
+      stat: importRowCount > 0 ? `${importRowCount} zu prüfen` : "",
     },
   ];
 

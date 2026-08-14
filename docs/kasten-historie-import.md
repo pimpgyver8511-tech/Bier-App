@@ -26,7 +26,28 @@ README, Abschnitt "Spielerplus-Sync") – dafür braucht es einen anderen
 Ansatz (z. B. separater Dienst außerhalb von Vercel). Wird bewusst auf
 eine spätere Session verschoben, hier nur als Merker festgehalten.
 
-**Status: noch NICHT in die App importiert.**
+**Status (14.08.2026, Update 2): Import-Werkstatt gebaut, Daten liegen bereit.**
+Unter Admin → **Import** (`/admin/import`) gibt es jetzt eine Seite, die
+diese Rohdaten (siehe `src/lib/import-data.ts`) Zeile für Zeile zur Prüfung
+anzeigt: Spieler-Dropdown (mit Vorschlag, falls eindeutig zuordenbar dank
+Jens' Tabelle unten), editierbare Begründung, editierbare Anzahl, dann
+„Übernehmen" (legt bei Bedarf ein `Match` an und erzeugt die
+`KastenAssignment`-Einträge) oder „Ignorieren" (verwirft die Zeile ohne
+Import). "Kästen offen"-Zeilen werden ohne Spieltag importiert
+(`fulfilled: false`), Seite-3-Zeilen mit Spieltag (`fulfilled: true`), die
+zwei Guthaben-Zeilen (Armin, Hoffi) als bereits erfüllt mit heutigem Datum
+(schiebt ihren Cooldown korrekt nach hinten). Lokal komplett durchgetestet.
+
+Damit die Cooldown-/Fairness-Berechnung nicht von unklaren Alt-Schulden
+verzerrt wird, zählen nur Zuweisungen mit Spieltag oder mit
+`fulfilled: true` fürs "letzter Kasten"/"insgesamt". Rein offene
+Alt-Schulden ohne Spieltag stehen weiterhin in der normalen
+Kasten-Historie (`/verlauf`, Admin → Kasten-Historie), verzerren aber nicht
+die automatische Vorschlagsliste.
+
+**Nächster Schritt für Jens:** unter `/admin/import` durchklicken – vor
+allem die als „❓ ungeklärt" markierten Zeilen (Spitznamen ohne
+Kader-Zuordnung) manuell einem Spieler zuordnen oder ignorieren.
 
 ## Seite 3 (Zwischenstand aus dem PDF, wird von Jens noch überarbeitet)
 

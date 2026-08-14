@@ -12,6 +12,7 @@ import {
 import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { runSpielerplusSync } from "@/lib/spielerplus";
 import { applyInitialSchema } from "@/lib/db-setup";
+import { RAW_IMPORT_ROWS } from "@/lib/import-data";
 
 async function requireAdmin() {
   if (!(await isAdmin())) {
@@ -168,7 +169,7 @@ export async function deleteAssignmentAction(assignmentId: string) {
   const assignment = await prisma.kastenAssignment.delete({
     where: { id: assignmentId },
   });
-  revalidatePath(`/admin/matches/${assignment.matchId}`);
+  if (assignment.matchId) revalidatePath(`/admin/matches/${assignment.matchId}`);
   revalidatePath("/admin/history");
   revalidatePath("/");
 }
@@ -234,4 +235,93 @@ export async function runDbSetupAction() {
   const result = await applyInitialSchema();
   revalidatePath("/admin/settings");
   return result;
+}
+
+// ---------- Kasten-Historie-Import ----------
+
+export async function loadImportRowsAction() {
+  await requireAdmin();
+
+  const players = await prisma.player.findMany();
+  const playerByName = new Map(players.map((p) => [p.name, p.id]));
+
+  await prisma.kastenImportRow.deleteMany({});
+  await prisma.kastenImportRow.createMany({
+    data: RAW_IMPORT_ROWS.map((row) => {
+      const suggestedPlayerId = row.suggestedPlayerName
+        ? playerByName.get(row.suggestedPlayerName) ?? null
+        : null;
+      return {
+        source: row.source,
+        rawDate: row.rawDate ?? null,
+        resolvedDate: row.resolvedDate ? new Date(row.resolvedDate) : null,
+        nickname: row.nickname,
+        reason: row.reason || null,
+        count: row.count ?? 1,
+        suggestedPlayerId,
+        playerId: suggestedPlayerId,
+      };
+    }),
+  });
+
+  revalidatePath("/admin/import");
+}
+
+export async function confirmImportRowAction(
+  rowId: string,
+  playerId: string,
+  reason: string,
+  count: number
+) {
+  await requireAdmin();
+  const row = await prisma.kastenImportRow.findUniqueOrThrow({ where: { id: rowId } });
+  const safeCount = Math.max(1, Math.min(10, Math.floor(count) || 1));
+  const trimmedReason = reason.trim() || null;
+
+  if (row.source === "SEITE3") {
+    if (!row.resolvedDate) throw new Error("Kein Datum fuer diese Zeile hinterlegt.");
+    let match = await prisma.match.findFirst({ where: { date: row.resolvedDate } });
+    if (!match) {
+      match = await prisma.match.create({ data: { date: row.resolvedDate } });
+    }
+    await prisma.kastenAssignment.createMany({
+      data: Array.from({ length: safeCount }, () => ({
+        matchId: match!.id,
+        playerId,
+        reason: trimmedReason,
+        fulfilled: true,
+        fulfilledAt: row.resolvedDate!,
+      })),
+    });
+  } else if (row.source === "GUTHABEN") {
+    await prisma.kastenAssignment.createMany({
+      data: Array.from({ length: safeCount }, () => ({
+        playerId,
+        reason: trimmedReason,
+        fulfilled: true,
+        fulfilledAt: new Date(),
+      })),
+    });
+  } else {
+    // OFFEN: noch nicht eingeloeste Alt-Schuld, kein Spieltag bekannt
+    await prisma.kastenAssignment.createMany({
+      data: Array.from({ length: safeCount }, () => ({
+        playerId,
+        reason: trimmedReason,
+        fulfilled: false,
+      })),
+    });
+  }
+
+  await prisma.kastenImportRow.delete({ where: { id: rowId } });
+  revalidatePath("/admin/import");
+  revalidatePath("/admin/history");
+  revalidatePath("/verlauf");
+  revalidatePath("/");
+}
+
+export async function ignoreImportRowAction(rowId: string) {
+  await requireAdmin();
+  await prisma.kastenImportRow.delete({ where: { id: rowId } });
+  revalidatePath("/admin/import");
 }

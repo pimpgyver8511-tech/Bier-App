@@ -11,7 +11,12 @@ function formatDate(d: Date) {
 export default async function VerlaufPage() {
   const assignments = await prisma.kastenAssignment.findMany({
     include: { player: true, match: true },
-    orderBy: { match: { date: "desc" } },
+  });
+
+  const sorted = [...assignments].sort((a, b) => {
+    const dateA = a.match?.date ?? a.fulfilledAt ?? a.createdAt;
+    const dateB = b.match?.date ?? b.fulfilledAt ?? b.createdAt;
+    return dateB.getTime() - dateA.getTime();
   });
 
   return (
@@ -35,10 +40,14 @@ export default async function VerlaufPage() {
               </tr>
             </thead>
             <tbody>
-              {assignments.map((a) => (
+              {sorted.map((a) => (
                 <tr key={a.id} className="border-b border-border last:border-0 align-top">
                   <td className="px-5 sm:px-6 py-3 whitespace-nowrap">
-                    {formatDate(a.match.date)}
+                    {a.match
+                      ? formatDate(a.match.date)
+                      : a.fulfilled
+                        ? formatDate(a.fulfilledAt ?? a.createdAt)
+                        : "kein Spieltag"}
                   </td>
                   <td className="px-3 py-3 font-medium whitespace-nowrap">{a.player.name}</td>
                   <td className="px-3 py-3 text-muted">{a.reason || "—"}</td>
@@ -51,7 +60,7 @@ export default async function VerlaufPage() {
                   </td>
                 </tr>
               ))}
-              {assignments.length === 0 && (
+              {sorted.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-5 sm:px-6 py-6 text-center text-muted">
                     Noch keine Einträge vorhanden.
