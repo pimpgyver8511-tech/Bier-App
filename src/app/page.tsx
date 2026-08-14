@@ -71,7 +71,7 @@ export default async function HomePage() {
             fill
             priority
             className="object-cover"
-            style={{ objectPosition: "50% 22%" }}
+            style={{ objectPosition: "50% 5%" }}
             sizes="(max-width: 640px) 100vw, 768px"
           />
         </div>
@@ -164,7 +164,7 @@ export default async function HomePage() {
       <section className="card">
         <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-lg font-bold">Kasten-Warteschlange</h2>
+            <h2 className="text-lg font-bold">Kasten-Überblick</h2>
             <p className="text-xs text-muted mt-0.5">
               Aktueller Stand: wer hat gerade einen Kasten offen.
             </p>
