@@ -44,7 +44,6 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
             <tr className="text-left text-muted border-b border-border">
               <th className="px-5 sm:px-6 py-2.5 font-medium">Spieler</th>
               <th className="px-3 py-2.5 font-medium">Letzter/nächster Kasten</th>
-              <th className="px-3 py-2.5 font-medium">Insgesamt</th>
               <th className="px-3 py-2.5 font-medium">Status</th>
             </tr>
           </thead>
@@ -53,7 +52,6 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
               <tr key={p.playerId} className="border-b border-border last:border-0">
                 <td className="px-5 sm:px-6 py-3 font-medium">{p.name}</td>
                 <td className="px-3 py-3 text-muted">{p.lastLabel}</td>
-                <td className="px-3 py-3 text-muted">{p.totalKasten}×</td>
                 <td className="px-3 py-3">
                   {p.pendingCount > 0 ? (
                     <button
@@ -77,7 +75,7 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 sm:px-6 py-6 text-center text-muted">
+                <td colSpan={3} className="px-5 sm:px-6 py-6 text-center text-muted">
                   {rows.length === 0 ? "Noch keine Spieler angelegt." : "Kein Spieler gefunden."}
                 </td>
               </tr>
