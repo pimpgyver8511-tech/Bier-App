@@ -199,13 +199,33 @@ export async function confirmAssignmentAction(
   const attendingIds = new Set(attendances.map((a) => a.playerId));
   const eligiblePlayerIds = playerIds.filter((id) => attendingIds.has(id));
 
-  await prisma.$transaction(
-    eligiblePlayerIds.map((playerId) =>
-      prisma.kastenAssignment.create({
-        data: { matchId, playerId, reason: reason || null },
-      })
-    )
-  );
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    for (const playerId of eligiblePlayerIds) {
+      // Hat der Spieler schon einen wirklich offenen (unerfuellten, keinem
+      // kuenftigen Spiel zugeordneten) Kasten, wird der diesem Spiel
+      // zugeordnet, statt einen zusaetzlichen neuen anzulegen - er baut damit
+      // eine bestehende Schuld ab, statt eine weitere aufzubauen.
+      const existingPending = await tx.kastenAssignment.findFirst({
+        where: {
+          playerId,
+          fulfilled: false,
+          OR: [{ matchId: null }, { match: { date: { lte: now } } }],
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      if (existingPending) {
+        await tx.kastenAssignment.update({
+          where: { id: existingPending.id },
+          data: { matchId },
+        });
+      } else {
+        await tx.kastenAssignment.create({
+          data: { matchId, playerId, reason: reason || null },
+        });
+      }
+    }
+  });
   revalidatePath(`/admin/matches/${matchId}`);
   revalidatePath("/admin/matches");
   revalidatePath("/admin/history");

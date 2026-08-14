@@ -55,8 +55,8 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        Cooldown: {suggestion.cooldownWeeks} Wochen · {suggestion.kastenPerMatch} Kästen pro Spiel.
-        Vorausgewählt sind die anwesenden Spieler, die am längsten keinen Kasten mehr hatten. Ein
+        Vorausgewählt sind die anwesenden Spieler mit mindestens einem offenen Kasten, die am
+        längsten keinen Kasten mehr gebracht haben ({suggestion.kastenPerMatch} Vorschläge). Ein
         Kasten kann nur Spielern zugeteilt werden, die für dieses Spiel zugesagt haben.
       </p>
 
@@ -97,7 +97,8 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
 
       <div>
         <label className="text-sm font-medium text-muted block mb-1">
-          Begründung (optional, z. B. Geburtstag, verlorene Wette …)
+          Begründung (nur relevant, falls ein Spieler ohne bestehenden offenen Kasten
+          ausgewählt wird und dadurch neu einen bekommt)
         </label>
         <textarea
           value={reason}

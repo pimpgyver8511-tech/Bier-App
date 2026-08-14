@@ -9,14 +9,12 @@ export type PlayerCandidate = {
   lastAssignmentDate: Date | null;
   daysSinceLast: number | null;
   pendingCount: number;
-  cooldownOk: boolean;
   eligible: boolean;
   reasonBlocked: string | null;
 };
 
 export type AssignmentSuggestion = {
   matchId: string;
-  cooldownWeeks: number;
   kastenPerMatch: number;
   candidates: PlayerCandidate[];
   suggested: PlayerCandidate[];
@@ -33,10 +31,13 @@ async function getSettings() {
 }
 
 /**
- * Ermittelt fuer ein Spiel, welche anwesenden Spieler aktuell "einen Kasten offen"
- * haben (Cooldown seit dem letzten erfuellten Kasten ist abgelaufen UND es steht
- * kein anderer Kasten mehr aus) und schlaegt die kastenPerMatch Spieler vor, die
- * am laengsten keinen Kasten mehr gebracht haben.
+ * Ermittelt fuer ein Spiel, welche anwesenden Spieler aktuell noch mindestens
+ * einen wirklich offenen (unerfuellten und keinem kuenftigen Spiel
+ * zugeordneten) Kasten haben - also eine Strafe abzubauen haben - und
+ * schlaegt die kastenPerMatch Spieler vor, die am laengsten keinen Kasten
+ * mehr gebracht haben. Kaesten werden bei diesem Verein ausschliesslich als
+ * Strafe vergeben (z.B. etwas vergessen), nicht turnusmaessig - wer nichts
+ * offen hat, kommt daher grundsaetzlich nicht als Vorschlag infrage.
  */
 export async function buildAssignmentSuggestion(
   matchId: string
@@ -52,11 +53,13 @@ export async function buildAssignmentSuggestion(
   });
   const attendanceByPlayer = new Map(attendances.map((a) => [a.playerId, a]));
 
+  const now = new Date();
+
   // Alle frueheren Zuweisungen je Spieler (ausser einer evtl. schon am
-  // aktuellen Spiel haengenden). Erfuellte zaehlen fuers Cooldown-Datum,
-  // unerfuellte (egal ob mit oder ohne Spieltag) zaehlen als "hat noch
-  // einen offen" und blockieren eine weitere Zuteilung, unabhaengig vom
-  // Cooldown.
+  // aktuellen Spiel haengenden). Erfuellte zaehlen fuers "zuletzt gebracht"-
+  // Datum. Unerfuellte zaehlen nur dann als wirklich offene Schuld, wenn sie
+  // noch keinem kuenftigen Spiel zugeordnet sind (sonst sind sie schon fuer
+  // ein anderes Spiel eingeplant, siehe buildPlayerOverview).
   const allAssignments = await prisma.kastenAssignment.findMany({
     where: { playerId: { in: players.map((p) => p.id) } },
     include: { match: true },
@@ -72,12 +75,10 @@ export async function buildAssignmentSuggestion(
       if (!current || effectiveDate.getTime() > current.getTime()) {
         lastFulfilledByPlayer.set(a.playerId, effectiveDate);
       }
-    } else {
+    } else if (!a.match || a.match.date.getTime() <= now.getTime()) {
       pendingCountByPlayer.set(a.playerId, (pendingCountByPlayer.get(a.playerId) ?? 0) + 1);
     }
   }
-
-  const cooldownMs = settings.cooldownWeeks * 7 * MS_PER_DAY;
 
   const candidates: PlayerCandidate[] = players.map((p) => {
     const attendance = attendanceByPlayer.get(p.id);
@@ -87,16 +88,10 @@ export async function buildAssignmentSuggestion(
     const daysSinceLast = lastDate
       ? Math.floor((match.date.getTime() - lastDate.getTime()) / MS_PER_DAY)
       : null;
-    const cooldownOk = !lastDate || match.date.getTime() - lastDate.getTime() >= cooldownMs;
 
     let reasonBlocked: string | null = null;
     if (!attending) reasonBlocked = "Nicht anwesend";
-    else if (pendingCount > 0)
-      reasonBlocked = `Hat noch ${pendingCount} offene${pendingCount > 1 ? "" : "n"} Kasten`;
-    else if (!cooldownOk)
-      reasonBlocked = `Cooldown aktiv (noch ${Math.ceil(
-        (cooldownMs - (match.date.getTime() - (lastDate as Date).getTime())) / MS_PER_DAY
-      )} Tage)`;
+    else if (pendingCount === 0) reasonBlocked = "Kein Kasten offen";
 
     return {
       playerId: p.id,
@@ -105,14 +100,14 @@ export async function buildAssignmentSuggestion(
       lastAssignmentDate: lastDate,
       daysSinceLast,
       pendingCount,
-      cooldownOk,
-      eligible: attending && cooldownOk && pendingCount === 0,
+      eligible: attending && pendingCount > 0,
       reasonBlocked,
     };
   });
 
   const eligible = candidates.filter((c) => c.eligible);
-  // Fairness: wer am laengsten keinen Kasten hatte (nie = ganz vorne), ist zuerst dran
+  // Wer am laengsten keinen Kasten mehr gebracht hat (nie = ganz vorne), soll
+  // seinen offenen Kasten als erstes abbauen.
   eligible.sort((a, b) => {
     if (a.lastAssignmentDate === null && b.lastAssignmentDate === null) {
       return a.name.localeCompare(b.name);
@@ -126,7 +121,6 @@ export async function buildAssignmentSuggestion(
 
   return {
     matchId,
-    cooldownWeeks: settings.cooldownWeeks,
     kastenPerMatch: settings.kastenPerMatch,
     candidates,
     suggested,
