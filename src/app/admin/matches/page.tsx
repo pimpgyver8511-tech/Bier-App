@@ -18,9 +18,13 @@ function formatDateTime(d: Date) {
 export default async function MatchesPage() {
   if (!(await isAdmin())) redirect("/admin");
 
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
   const [matches, players] = await Promise.all([
     prisma.match.findMany({
-      orderBy: { date: "desc" },
+      where: { date: { gte: startOfToday } },
+      orderBy: { date: "asc" },
       include: {
         _count: { select: { assignments: true } },
         attendances: true,
@@ -117,7 +121,7 @@ export default async function MatchesPage() {
           );
         })}
         {matches.length === 0 && (
-          <p className="text-muted text-center py-6">Noch keine Spiele angelegt.</p>
+          <p className="text-muted text-center py-6">Keine anstehenden Spiele.</p>
         )}
       </div>
     </div>
