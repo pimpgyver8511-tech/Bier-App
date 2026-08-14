@@ -46,6 +46,7 @@ export default async function HomePage() {
       : "noch nie",
     totalKasten: p.totalKasten,
     pendingCount: p.pendingCount,
+    pendingReasons: p.pendingReasons,
     open: p.open,
     cooldownRemainingDays: p.cooldownRemainingDays,
   }));

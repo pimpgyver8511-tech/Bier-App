@@ -138,6 +138,7 @@ export type PlayerOverviewEntry = {
   name: string;
   totalKasten: number;
   pendingCount: number;
+  pendingReasons: string[];
   lastFulfilledDate: Date | null;
   daysSinceLast: number | null;
   open: boolean; // hat ausstehende Kaesten ODER Cooldown seit letztem erfuellten ist abgelaufen
@@ -163,9 +164,10 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
 
   const byPlayer = new Map<
     string,
-    { total: number; pending: number; lastFulfilled: Date | null }
+    { total: number; pending: number; pendingReasons: string[]; lastFulfilled: Date | null }
   >();
-  for (const p of players) byPlayer.set(p.id, { total: 0, pending: 0, lastFulfilled: null });
+  for (const p of players)
+    byPlayer.set(p.id, { total: 0, pending: 0, pendingReasons: [], lastFulfilled: null });
 
   for (const a of assignments) {
     const entry = byPlayer.get(a.playerId);
@@ -178,6 +180,7 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
       }
     } else {
       entry.pending += 1;
+      entry.pendingReasons.push(a.reason || "Kein Grund angegeben");
     }
   }
 
@@ -197,6 +200,7 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
         name: p.name,
         totalKasten: info.total,
         pendingCount: info.pending,
+        pendingReasons: info.pendingReasons,
         lastFulfilledDate: info.lastFulfilled,
         daysSinceLast,
         open: info.pending > 0 || cooldownOk,
