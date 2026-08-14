@@ -277,17 +277,15 @@ export async function setAssignmentDateAction(assignmentId: string, dateStr: str
     match = await prisma.match.create({ data: { date: dayStart } });
   }
 
-  // Wird beim manuellen Nachtragen von Kasten-Historie zum ersten Mal ein
-  // Spieltag verknuepft (bisher kein matchId) UND liegt dieser Spieltag in
-  // der Vergangenheit, ist das erkennbar ein rueckwirkend erfasster, schon
-  // erledigter Kasten - automatisch als erledigt markieren statt eine
-  // zusaetzliche manuelle Bestaetigung zu verlangen. Wird ein bereits
-  // verknuepftes Datum nur korrigiert, bleibt der bestehende
-  // erledigt/ausstehend-Status unangetastet (kein ueberschreiben einer
-  // bewusst gesetzten "immer noch offen"-Markierung).
-  const isFirstLink = existing.matchId === null;
+  // Sobald ein Spieltag in der Vergangenheit gesetzt wird (egal ob neu
+  // verknuepft oder ein bestehendes Datum geaendert), ist das erkennbar ein
+  // rueckwirkend erfasster, schon erledigter Kasten - automatisch als
+  // erledigt markieren statt eine zusaetzliche manuelle Bestaetigung zu
+  // verlangen. Der Status bleibt danach ganz normal ueber den Badge
+  // manuell umschaltbar, falls doch mal ein Kasten trotz vergangenem Datum
+  // noch nicht geliefert wurde.
   const isPastDate = dayStart.getTime() < Date.now();
-  const shouldAutoFulfill = isFirstLink && isPastDate && !existing.fulfilled;
+  const shouldAutoFulfill = isPastDate && !existing.fulfilled;
 
   const updated = await prisma.kastenAssignment.update({
     where: { id: assignmentId },
