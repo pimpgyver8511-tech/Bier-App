@@ -36,8 +36,8 @@ der Kader-Beitrittsdaten (Andreas Hoffart 07.07.2026, Philipp Kluttig
 06.08.2026).
 
 ```
-16.3 Mole Bday 25, Daui TL verpeilt
-23.3 Helbe Traumtor, Holfi Bälle vergessen
+16.3 Mole Bday 25
+23.3 Helbe Traumtor, 
 30.3 Stefan Schreiber 2 Doktor Kästen
 8.4 Kevin R und Zintzschi
 13.4 Pilzer Einstand und erstes Pflichtspiel-Kasten
@@ -87,15 +87,14 @@ Felix Sander - 40. Geburtstag
 Zintzschi - neue Schuhe
 Philipp neu - erstes Pflichtspiel Kasten
 Jesse - erstes Pflichtspiel Kasten
-```
+
 
 Plus, mit geklärter Bedeutung:
 
 ```
 Armin: -1     -> Guthaben (schon einen Kasten im Voraus gebracht)
 Hoffi: -1     -> Guthaben (schon einen Kasten im Voraus gebracht)
-7 Kästen verfügbar   -> vermutlich Lagerbestand, Bedeutung fürs Modell noch offen
-```
+
 
 ## Spitznamen → Kader-Zuordnung (Ersteinschätzung, für Seite 3 + "Kästen offen")
 
@@ -124,29 +123,26 @@ Sicherheits-Einstufung: ✅ sehr wahrscheinlich · ⚠️ Vermutung · ❓ unkla
 | Felix Sander | Felix Sander | ✅ |
 | Felix Schmidt | Felix Schmidt | ✅ |
 | Stefan Schreiber | Stefan Schreiber | ✅ |
-| Philipp neu | vermutlich Philipp Kluttig (Beitritt 06.08.2026, passt zeitlich) | ⚠️ |
-| Holfi | Sascha Holfert? | ⚠️ |
+| Philipp neu | Philipp Kluttig 
+| Holfi | Sascha Holfert
 | Jan | nicht im aktuellen Kader (evtl. ausgeschieden) | ❓ |
-| Kirby | nicht im aktuellen Kader | ❓ |
-| Daui | nicht im aktuellen Kader | ❓ |
-| Schmu | nicht eindeutig im Kader (evtl. "Schmidt"-Spitzname, aber welcher?) | ❓ |
-| Felle | nicht eindeutig – evtl. Philipp Helbig, evtl. jemand anderes | ❓ |
-| Helbe | vermutlich Philipp Helbig (Nachname → Spitzname) | ⚠️ |
-| Meppe | nicht im aktuellen Kader | ❓ |
-| R (Trikotnummerwechsel) | evtl. Kevin Richter | ❓ |
-| Jörg | nicht im aktuellen Kader | ❓ |
+| Kirby | Sebastian Kirmse
+| Daui | Kevin Dau 
+| Schmu | Stefan Schmidt 
+| Felle | Jürgen Fellenberg (alter Trainer) 
+| Helbe | Philipp Helbig 
+| Meppe | Manuel Rauscher
+
+
 
 ## Offene Fragen für die nächste Session
 
 1. **Überarbeitete Seite 3 von Jens abwarten** – ersetzt den Zwischenstand
    oben.
-2. **Jahreszahl für Seite 3 bestätigen** (Vermutung: 2026).
-3. **Unklare Spitznamen auflösen** (❓ in der Tabelle) – wer ist Jan, Kirby,
-   Daui, Meppe, Jörg, Schmu, Felle? Noch im Team?
-4. **Philipp Wiehl (Hochzeit)** – als offener Kasten-Punkt ergänzen, oder
-   schon anderweitig erfasst?
-5. **"7 Kästen verfügbar"** – nur Lagerbestand (für App-Logik irrelevant)
-   oder soll das irgendwo abgebildet werden?
+2. **Jahreszahl für Seite 3 bestätigen** 2026. bestätigt
+3. **Unklare Spitznamen auflösen** Tabelle korrigiert
+4. **Philipp Wiehl (Hochzeit)** – nicht nötig
+5. 
 6. **"2x"-Einträge** – als zwei separate `KastenAssignment`-Zeilen
    importieren (für korrekte "Kästen insgesamt"-Zählung)?
 7. **Kein Match-Bezug** – die App verknüpft jeden Kasten mit einem
