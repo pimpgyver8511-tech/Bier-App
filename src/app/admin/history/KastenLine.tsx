@@ -35,8 +35,9 @@ export function KastenLine({
         onChange={(e) => setDate(e.target.value)}
         onBlur={() => {
           if (date) {
-            startTransition(() => {
-              setAssignmentDateAction(id, date);
+            startTransition(async () => {
+              const result = await setAssignmentDateAction(id, date);
+              if (result) setFulfilled(result.fulfilled);
             });
           }
         }}

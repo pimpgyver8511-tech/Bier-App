@@ -255,6 +255,10 @@ export async function setAssignmentDateAction(assignmentId: string, dateStr: str
   const [y, m, d] = dateStr.split("-").map(Number);
   if (!y || !m || !d) return;
 
+  const existing = await prisma.kastenAssignment.findUniqueOrThrow({
+    where: { id: assignmentId },
+  });
+
   // dateStr kommt aus einem reinen <input type="date"> (Kalendertag ohne
   // Uhrzeit) und soll den Kalendertag in Berliner Ortszeit treffen. Ein
   // exakter Zeitpunkt-Abgleich (wie zuvor) fand nie ein bereits per
@@ -273,13 +277,29 @@ export async function setAssignmentDateAction(assignmentId: string, dateStr: str
     match = await prisma.match.create({ data: { date: dayStart } });
   }
 
-  await prisma.kastenAssignment.update({
+  // Wird beim manuellen Nachtragen von Kasten-Historie zum ersten Mal ein
+  // Spieltag verknuepft (bisher kein matchId) UND liegt dieser Spieltag in
+  // der Vergangenheit, ist das erkennbar ein rueckwirkend erfasster, schon
+  // erledigter Kasten - automatisch als erledigt markieren statt eine
+  // zusaetzliche manuelle Bestaetigung zu verlangen. Wird ein bereits
+  // verknuepftes Datum nur korrigiert, bleibt der bestehende
+  // erledigt/ausstehend-Status unangetastet (kein ueberschreiben einer
+  // bewusst gesetzten "immer noch offen"-Markierung).
+  const isFirstLink = existing.matchId === null;
+  const isPastDate = dayStart.getTime() < Date.now();
+  const shouldAutoFulfill = isFirstLink && isPastDate && !existing.fulfilled;
+
+  const updated = await prisma.kastenAssignment.update({
     where: { id: assignmentId },
-    data: { matchId: match.id },
+    data: {
+      matchId: match.id,
+      ...(shouldAutoFulfill ? { fulfilled: true, fulfilledAt: dayStart } : {}),
+    },
   });
   revalidatePath("/admin/history");
   revalidatePath("/admin/matches");
   revalidatePath("/");
+  return { fulfilled: updated.fulfilled };
 }
 
 export async function addManualKastenAction(playerId: string, reason: string) {
