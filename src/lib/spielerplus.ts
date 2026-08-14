@@ -13,6 +13,39 @@ function textValue(v: string | { val: string } | undefined): string | null {
   return typeof v === "string" ? v : v.val;
 }
 
+function berlinOffsetMinutes(utcGuess: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Berlin",
+    timeZoneName: "shortOffset",
+  }).formatToParts(utcGuess);
+  const offsetStr = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT+1";
+  const match = offsetStr.match(/GMT([+-]\d+)/);
+  return (match ? parseInt(match[1], 10) : 1) * 60;
+}
+
+/**
+ * Der Spielerplus-Kalenderexport liefert als DTSTART die Treffzeit (z.B.
+ * 18:00), nicht den tatsaechlichen Anstoss (19:00). Ersetzt die Uhrzeit
+ * eines Termins durch 19:00 Uhr Ortszeit Berlin, behaelt aber das
+ * Kalenderdatum aus dem Feed bei - DST-sicher ueber Intl statt fester
+ * Stunden-Offsets.
+ */
+function withBerlinKickoffTime(instant: Date, hour: number, minute: number): Date {
+  const dateParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(instant);
+  const y = Number(dateParts.find((p) => p.type === "year")!.value);
+  const m = Number(dateParts.find((p) => p.type === "month")!.value);
+  const d = Number(dateParts.find((p) => p.type === "day")!.value);
+
+  const naiveUtc = Date.UTC(y, m - 1, d, hour, minute);
+  const offsetMin = berlinOffsetMinutes(new Date(naiveUtc));
+  return new Date(naiveUtc - offsetMin * 60_000);
+}
+
 /**
  * Spielerplus bietet keine offizielle API und ein Login+Scraping-Sync
  * (Playwright/Chromium) laesst sich auf Vercel nicht betreiben (kein
@@ -90,7 +123,7 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
     if (!isHome && !isAway) continue;
 
     const opponent = (isHome ? teamB : teamA).trim();
-    const date = event.start as Date;
+    const date = withBerlinKickoffTime(event.start as Date, 19, 0);
     const location = textValue(event.location);
 
     const existing = await prisma.match.findUnique({ where: { externalId: uid } });

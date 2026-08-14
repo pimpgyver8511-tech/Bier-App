@@ -146,6 +146,7 @@ export async function setAttendanceAction(
     create: { matchId, playerId, status, source: "MANUAL" },
   });
   revalidatePath(`/admin/matches/${matchId}`);
+  revalidatePath("/admin/matches");
   revalidatePath("/");
 }
 
@@ -158,6 +159,7 @@ export async function importAttendanceCsvAction(matchId: string, formData: FormD
   const text = await file.text();
   const result = await importAttendanceFromCsv(matchId, text);
   revalidatePath(`/admin/matches/${matchId}`);
+  revalidatePath("/admin/matches");
   revalidatePath("/");
   return result;
 }
@@ -187,6 +189,7 @@ export async function confirmAssignmentAction(
     )
   );
   revalidatePath(`/admin/matches/${matchId}`);
+  revalidatePath("/admin/matches");
   revalidatePath("/admin/history");
   revalidatePath("/");
 }
@@ -197,6 +200,7 @@ export async function deleteAssignmentAction(assignmentId: string) {
     where: { id: assignmentId },
   });
   if (assignment.matchId) revalidatePath(`/admin/matches/${assignment.matchId}`);
+  revalidatePath("/admin/matches");
   revalidatePath("/admin/history");
   revalidatePath("/");
 }
