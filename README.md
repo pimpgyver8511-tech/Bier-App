@@ -95,13 +95,19 @@ Vercel-Funktion zu laufen.
    - `SESSION_SECRET` – langer Zufallsstring
    - optional `SPIELERPLUS_EMAIL`, `SPIELERPLUS_PASSWORD`, `SPIELERPLUS_TEAM_URL`
 4. **Deploy auslösen** – danach automatisch bei jedem Push auf den verbundenen Branch.
-5. **Datenbank einmalig einrichten**: einloggen unter `/admin`, zu
-   **Einstellungen** gehen und auf **„Datenbank einmalig einrichten"**
-   klicken. (`prisma migrate deploy` lief bei uns im Vercel-Build zuverlässig
-   auf einen Verbindungsfehler zur Datenbank – die Build-Umgebung scheint
-   dort anderen Netzwerkzugriff zu haben als die Serverless-Function-Laufzeit.
-   Die Einrichtung läuft deshalb einmalig zur Laufzeit über diesen Button,
-   der direkt den bestehenden Prisma-Client nutzt.)
+5. **Datenbank einrichten/aktualisieren**: einloggen unter `/admin`, zu
+   **Einstellungen** gehen (Abschnitt "Datenbank-Wartung") und auf
+   **„Datenbank einrichten/aktualisieren"** klicken. (`prisma migrate deploy`
+   lief bei uns im Vercel-Build zuverlässig auf einen Verbindungsfehler zur
+   Datenbank – die Build-Umgebung scheint dort anderen Netzwerkzugriff zu
+   haben als die Serverless-Function-Laufzeit. Migrationen laufen deshalb zur
+   Laufzeit über diesen Button, der direkt den bestehenden Prisma-Client
+   nutzt.)
+   - **Bei jeder künftigen Schema-Änderung** (neues Prisma-Migrationsfile):
+     in `src/lib/db-setup.ts` einen neuen Eintrag im `MIGRATIONS`-Array mit
+     demselben Namen und denselben SQL-Statements wie die neue Migration
+     ergänzen, deployen, dann den Button erneut klicken. Bereits angewendete
+     Migrationen werden über die Tabelle `_manual_migrations` übersprungen.
 
 ## Projektstruktur (Kurzüberblick)
 
