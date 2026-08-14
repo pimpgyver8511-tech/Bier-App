@@ -64,14 +64,14 @@ export default async function HomePage() {
   return (
     <div className="space-y-8">
       <section className="card overflow-hidden relative">
-        <div className="relative h-56 sm:h-72">
+        <div className="relative aspect-[2.1/1]">
           <Image
             src="/bierbeauftragter-v3.jpg"
             alt="Der Bierbeauftragte"
             fill
             priority
             className="object-cover"
-            style={{ objectPosition: "50% 5%" }}
+            style={{ objectPosition: "50% 3%" }}
             sizes="(max-width: 640px) 100vw, 768px"
           />
         </div>
