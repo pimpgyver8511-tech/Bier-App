@@ -53,23 +53,26 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
                 <td className="px-5 sm:px-6 py-3 font-medium">{p.name}</td>
                 <td className="px-3 py-3 text-muted">{p.lastLabel}</td>
                 <td className="px-3 py-3">
-                  {p.pendingCount > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => setDetailPlayerId(p.playerId)}
-                      className="badge badge-gold border-0 font-sans cursor-pointer hover:brightness-95 transition underline decoration-dotted decoration-2 underline-offset-2"
-                    >
-                      🍺 {p.pendingCount}× ausstehend <span aria-hidden="true">ⓘ</span>
-                    </button>
-                  ) : p.nextScheduledLabel ? (
-                    <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
-                  ) : p.open ? (
-                    <span className="badge badge-green">✅ Keinen Kasten offen aktuell</span>
-                  ) : (
-                    <span className="badge badge-gray">
-                      ⏳ noch {p.cooldownRemainingDays} Tage Pause
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {p.cooldownRemainingDays !== null && (
+                      <span className="badge badge-gray">
+                        ⏳ noch {p.cooldownRemainingDays} Tage Pause
+                      </span>
+                    )}
+                    {p.pendingCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setDetailPlayerId(p.playerId)}
+                        className="badge badge-gold border-0 font-sans cursor-pointer hover:brightness-95 transition underline decoration-dotted decoration-2 underline-offset-2"
+                      >
+                        🍺 {p.pendingCount}× ausstehend <span aria-hidden="true">ⓘ</span>
+                      </button>
+                    ) : p.nextScheduledLabel ? (
+                      <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
+                    ) : p.open ? (
+                      <span className="badge badge-green">✅ Keinen Kasten offen aktuell</span>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}
