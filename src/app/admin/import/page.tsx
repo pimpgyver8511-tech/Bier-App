@@ -2,6 +2,7 @@ import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ImportWorkbench, type ImportRowData } from "./ImportWorkbench";
+import { DbSetupButton } from "@/components/DbSetupButton";
 
 export default async function ImportPage() {
   if (!(await isAdmin())) redirect("/admin");
@@ -30,9 +31,13 @@ export default async function ImportPage() {
 
   if (!dbReady) {
     return (
-      <div className="card p-5 sm:p-6 space-y-2">
-        <h1 className="font-bold text-lg">⚠️ Datenbank noch nicht eingerichtet</h1>
-        <p className="text-sm text-muted">Bitte zuerst unter Einstellungen einrichten.</p>
+      <div className="card p-5 sm:p-6 space-y-3">
+        <h1 className="font-bold text-lg">⚠️ Datenbank-Update nötig</h1>
+        <p className="text-sm text-muted">
+          Für die Import-Werkstatt fehlt noch eine neue Tabelle (bzw. eine
+          Schema-Änderung). Einmal klicken, danach lädt diese Seite normal.
+        </p>
+        <DbSetupButton />
       </div>
     );
   }

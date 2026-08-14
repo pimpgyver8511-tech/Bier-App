@@ -23,7 +23,7 @@ export function DbSetupButton() {
         }
         className="btn btn-outline text-sm"
       >
-        {isPending ? "Richte ein…" : "🛠️ Datenbank einmalig einrichten"}
+        {isPending ? "Richte ein…" : "🛠️ Datenbank einrichten/aktualisieren"}
       </button>
       {message && (
         <p className={`text-sm ${ok ? "text-brand-dark" : "text-danger"}`}>{message}</p>

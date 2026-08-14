@@ -11,7 +11,7 @@ import {
 } from "@/lib/auth";
 import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { runSpielerplusSync } from "@/lib/spielerplus";
-import { applyInitialSchema } from "@/lib/db-setup";
+import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
 
 async function requireAdmin() {
@@ -232,8 +232,9 @@ export async function updateSpielerplusUrlAction(formData: FormData) {
 
 export async function runDbSetupAction() {
   await requireAdmin();
-  const result = await applyInitialSchema();
+  const result = await applyPendingMigrations();
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/import");
   return result;
 }
 

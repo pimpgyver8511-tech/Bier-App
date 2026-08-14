@@ -2,7 +2,7 @@ import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { updateSettingsAction, updateSpielerplusUrlAction } from "@/lib/actions";
-import { DbSetupButton } from "./DbSetupButton";
+import { DbSetupButton } from "@/components/DbSetupButton";
 
 export default async function SettingsPage() {
   if (!(await isAdmin())) redirect("/admin");
@@ -42,6 +42,15 @@ export default async function SettingsPage() {
           <DbSetupButton />
         </section>
       )}
+
+      <section className="card p-5 sm:p-6 space-y-3">
+        <h2 className="text-lg font-bold">Datenbank-Wartung</h2>
+        <p className="text-sm text-muted">
+          Nach einem Deploy mit neuen Datenbank-Änderungen hier klicken, damit diese
+          angewendet werden (läuft zur Laufzeit statt beim Build, siehe README).
+        </p>
+        <DbSetupButton />
+      </section>
 
       <section className="card p-5 sm:p-6 space-y-4">
         <h2 className="text-lg font-bold">Kasten-Regeln</h2>
