@@ -7,6 +7,7 @@ export type QueueRow = {
   name: string;
   lastLabel: string;
   totalKasten: number;
+  pendingCount: number;
   open: boolean;
   cooldownRemainingDays: number | null;
 };
@@ -48,7 +49,11 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
                 <td className="px-3 py-3 text-muted">{p.lastLabel}</td>
                 <td className="px-3 py-3 text-muted">{p.totalKasten}×</td>
                 <td className="px-3 py-3">
-                  {p.open ? (
+                  {p.pendingCount > 0 ? (
+                    <span className="badge badge-gold">
+                      🍺 {p.pendingCount}× ausstehend
+                    </span>
+                  ) : p.open ? (
                     <span className="badge badge-green">🍺 hat einen offen</span>
                   ) : (
                     <span className="badge badge-gray">

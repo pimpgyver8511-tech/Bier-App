@@ -9,9 +9,13 @@ function formatDate(d: Date) {
 }
 
 export default async function VerlaufPage() {
-  const assignments = await prisma.kastenAssignment.findMany({
+  const allAssignments = await prisma.kastenAssignment.findMany({
     include: { player: true, match: true },
   });
+  // Nur tatsaechlich erfuellte Kaesten gehoeren in den Verlauf (Basis fuer
+  // den Cooldown). Noch offene/ausstehende Kaesten werden in der Uebersicht
+  // angezeigt, nicht hier.
+  const assignments = allAssignments.filter((a) => a.fulfilled);
 
   const byPlayer = new Map<string, { name: string; entries: typeof assignments }>();
   for (const a of assignments) {
@@ -51,18 +55,10 @@ export default async function VerlaufPage() {
                   className="flex items-center gap-3 py-1.5 border-b border-border last:border-0"
                 >
                   <span className="text-xs text-muted whitespace-nowrap w-24 shrink-0">
-                    {a.match
-                      ? formatDate(a.match.date)
-                      : a.fulfilled
-                        ? formatDate(a.fulfilledAt ?? a.createdAt)
-                        : "kein Spieltag"}
+                    {a.match ? formatDate(a.match.date) : formatDate(a.fulfilledAt ?? a.createdAt)}
                   </span>
                   <span className="text-sm flex-1">{a.reason || "—"}</span>
-                  {a.fulfilled ? (
-                    <span className="badge badge-green shrink-0">✅ erledigt</span>
-                  ) : (
-                    <span className="badge badge-gold shrink-0">🍺 ausstehend</span>
-                  )}
+                  <span className="badge badge-green shrink-0">✅ erledigt</span>
                 </div>
               ))}
             </div>

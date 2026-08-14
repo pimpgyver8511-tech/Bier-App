@@ -18,13 +18,16 @@ function formatDateTime(d: Date) {
 export default async function MatchesPage() {
   if (!(await isAdmin())) redirect("/admin");
 
-  const matches = await prisma.match.findMany({
-    orderBy: { date: "desc" },
-    include: {
-      _count: { select: { assignments: true } },
-      attendances: true,
-    },
-  });
+  const [matches, players] = await Promise.all([
+    prisma.match.findMany({
+      orderBy: { date: "desc" },
+      include: {
+        _count: { select: { assignments: true } },
+        attendances: true,
+      },
+    }),
+    prisma.player.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -52,6 +55,32 @@ export default async function MatchesPage() {
           <input type="checkbox" name="isHome" id="isHome" defaultChecked className="w-4 h-4" />
           <label htmlFor="isHome" className="text-sm">Heimspiel</label>
         </div>
+
+        <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
+          <label className="text-sm font-medium text-muted block mb-2">
+            Bringt den Kasten mit (optional, mehrere möglich)
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1.5 max-h-48 overflow-y-auto pr-1">
+            {players.map((p) => (
+              <label key={p.id} className="flex items-center gap-1.5 text-sm">
+                <input type="checkbox" name="kastenPlayers" value={p.id} className="w-4 h-4" />
+                {p.name}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="text-sm font-medium text-muted block mb-1">
+            Begründung (optional, für alle ausgewählten oben)
+          </label>
+          <input
+            type="text"
+            name="kastenReason"
+            className="input"
+            placeholder="z. B. Geburtstag, verlorene Wette …"
+          />
+        </div>
+
         <div className="sm:col-span-2">
           <button type="submit" className="btn btn-primary">+ Spiel anlegen</button>
         </div>

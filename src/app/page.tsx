@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { buildPlayerOverview } from "@/lib/kasten";
+import { isAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 
@@ -20,7 +21,7 @@ export default async function HomePage() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [nextMatch, overview] = await Promise.all([
+  const [nextMatch, overview, admin] = await Promise.all([
     prisma.match.findFirst({
       where: { date: { gte: startOfToday } },
       orderBy: { date: "asc" },
@@ -30,6 +31,7 @@ export default async function HomePage() {
       },
     }),
     buildPlayerOverview(),
+    isAdmin(),
   ]);
 
   const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
@@ -37,12 +39,13 @@ export default async function HomePage() {
   const queueRows: QueueRow[] = overview.map((p) => ({
     playerId: p.playerId,
     name: p.name,
-    lastLabel: p.lastAssignmentDate
+    lastLabel: p.lastFulfilledDate
       ? p.daysSinceLast !== null && p.daysSinceLast >= 0
-        ? `${formatDate(p.lastAssignmentDate)} (vor ${p.daysSinceLast} Tagen)`
-        : `${formatDate(p.lastAssignmentDate)} (anstehend)`
+        ? `${formatDate(p.lastFulfilledDate)} (vor ${p.daysSinceLast} Tagen)`
+        : `${formatDate(p.lastFulfilledDate)} (anstehend)`
       : "noch nie",
     totalKasten: p.totalKasten,
+    pendingCount: p.pendingCount,
     open: p.open,
     cooldownRemainingDays: p.cooldownRemainingDays,
   }));
@@ -92,9 +95,16 @@ export default async function HomePage() {
               </div>
             </div>
           ) : (
-            <p className="text-muted">
-              Aktuell ist kein anstehendes Spiel eingetragen.
-            </p>
+            <div className="space-y-3">
+              <p className="text-muted">
+                Aktuell ist kein anstehendes Spiel eingetragen.
+              </p>
+              {admin && (
+                <Link href="/admin/matches" className="btn btn-gold text-sm">
+                  🍺 Spiel anlegen & Kasten-Verantwortliche festlegen →
+                </Link>
+              )}
+            </div>
           )}
         </div>
       </section>

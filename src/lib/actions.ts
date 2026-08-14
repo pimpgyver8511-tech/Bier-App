@@ -95,6 +95,8 @@ export async function createMatchAction(formData: FormData) {
   const opponent = String(formData.get("opponent") ?? "").trim() || null;
   const location = String(formData.get("location") ?? "").trim() || null;
   const isHome = formData.get("isHome") === "on";
+  const kastenReason = String(formData.get("kastenReason") ?? "").trim() || null;
+  const kastenPlayerIds = formData.getAll("kastenPlayers").map(String).filter(Boolean);
   if (!dateStr) return;
 
   const match = await prisma.match.create({
@@ -106,7 +108,19 @@ export async function createMatchAction(formData: FormData) {
     data: players.map((p) => ({ matchId: match.id, playerId: p.id })),
   });
 
+  if (kastenPlayerIds.length > 0) {
+    await prisma.kastenAssignment.createMany({
+      data: kastenPlayerIds.map((playerId) => ({
+        matchId: match.id,
+        playerId,
+        reason: kastenReason,
+        fulfilled: false,
+      })),
+    });
+  }
+
   revalidatePath("/admin/matches");
+  revalidatePath("/admin/history");
   revalidatePath("/");
   redirect(`/admin/matches/${match.id}`);
 }
