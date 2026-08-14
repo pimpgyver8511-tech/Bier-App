@@ -1,15 +1,21 @@
 import Link from "next/link";
+import { Outfit } from "next/font/google";
 import { isAdmin } from "@/lib/auth";
 import { BeerMugIcon } from "@/components/BeerMugIcon";
 import { logoutAction } from "@/lib/actions";
+
+const outfit = Outfit({ subsets: ["latin"], weight: ["600", "700"] });
 
 export async function NavBar() {
   const admin = await isAdmin();
 
   return (
-    <header className="bg-brand text-white">
+    <header className="bg-brand-dark text-white">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight">
+        <Link
+          href="/"
+          className={`${outfit.className} flex items-center gap-2 font-bold text-lg tracking-tight`}
+        >
           <BeerMugIcon className="w-8 h-8" />
           Bier App
         </Link>

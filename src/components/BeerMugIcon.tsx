@@ -1,42 +1,32 @@
 export function BeerMugIcon({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 48 48"
+      viewBox="0 0 24 24"
       fill="none"
       className={className}
       aria-hidden="true"
     >
       <path
-        d="M10 14h20v24a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V14Z"
+        d="M6.5 6.8C6.5 5.8 7.3 5 8.3 5h5.4c1 0 1.8.8 1.8 1.8V18a3 3 0 0 1-3 3h-3.2a3 3 0 0 1-3-3V6.8Z"
         fill="#e8a93c"
-        stroke="#3a2404"
-        strokeWidth="2"
       />
       <path
-        d="M10 20h20"
-        stroke="#c98a1f"
-        strokeWidth="2"
-      />
-      <path
-        d="M30 18h4a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-4"
+        d="M15.5 9h1.3A2.7 2.7 0 0 1 19.5 11.7v1.6A2.7 2.7 0 0 1 16.8 16H15.5"
+        stroke="#e8a93c"
+        strokeWidth="1.7"
+        strokeLinecap="round"
         fill="none"
-        stroke="#1c6b3a"
-        strokeWidth="2.5"
-        strokeLinecap="round"
       />
       <path
-        d="M12 14c-1-3 1-4 0-6"
-        stroke="white"
-        strokeWidth="2"
-        strokeLinecap="round"
+        d="M6.8 9.5h8.4"
+        stroke="#c98a1f"
+        strokeWidth="1.1"
+        opacity="0.55"
       />
       <path
-        d="M17 14c-1-4 1.5-5 0.5-8"
-        stroke="white"
-        strokeWidth="2"
-        strokeLinecap="round"
+        d="M7 6.3c0-1.8 1.6-2.8 4-2.8s4 1 4 2.8-1.6 2.3-4 2.3-4-.5-4-2.3Z"
+        fill="white"
       />
-      <ellipse cx="20" cy="14" rx="10" ry="4" fill="white" stroke="#3a2404" strokeWidth="2" />
     </svg>
   );
 }
