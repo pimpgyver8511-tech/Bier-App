@@ -208,11 +208,8 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
       };
     })
     .sort((a, b) => {
-      if ((a.pendingCount > 0) !== (b.pendingCount > 0)) return a.pendingCount > 0 ? -1 : 1;
-      if (a.lastFulfilledDate === null && b.lastFulfilledDate === null)
-        return a.name.localeCompare(b.name);
-      if (a.lastFulfilledDate === null) return -1;
-      if (b.lastFulfilledDate === null) return 1;
-      return a.lastFulfilledDate.getTime() - b.lastFulfilledDate.getTime();
+      const firstNameA = a.name.split(" ")[0];
+      const firstNameB = b.name.split(" ")[0];
+      return firstNameA.localeCompare(firstNameB, "de");
     });
 }

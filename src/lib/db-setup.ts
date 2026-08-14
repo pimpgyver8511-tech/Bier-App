@@ -99,6 +99,13 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `CREATE UNIQUE INDEX "Match_externalId_key" ON "Match"("externalId")`,
     ],
   },
+  {
+    name: "20260814091452_attendance_unsicher_and_player_alias",
+    statements: [
+      `ALTER TYPE "AttendanceStatus" ADD VALUE 'UNSICHER'`,
+      `ALTER TABLE "Player" ADD COLUMN "alias" TEXT`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

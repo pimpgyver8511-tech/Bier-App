@@ -12,6 +12,7 @@ datasource db {
 model Player {
   id        String   @id @default(cuid())
   name      String   @unique
+  alias     String?
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -37,6 +38,7 @@ model Match {
 enum AttendanceStatus {
   ZUSAGE
   ABSAGE
+  UNSICHER
   UNKNOWN
 }
 

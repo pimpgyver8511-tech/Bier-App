@@ -3,11 +3,12 @@
 import { useTransition } from "react";
 import { setAttendanceAction } from "@/lib/actions";
 
-type Status = "ZUSAGE" | "ABSAGE" | "UNKNOWN";
+type Status = "ZUSAGE" | "ABSAGE" | "UNSICHER" | "UNKNOWN";
 
 const OPTIONS: { value: Status; label: string; activeClass: string }[] = [
   { value: "ZUSAGE", label: "Zusage", activeClass: "bg-brand text-white border-brand" },
   { value: "ABSAGE", label: "Absage", activeClass: "bg-danger text-white border-danger" },
+  { value: "UNSICHER", label: "Unsicher", activeClass: "bg-gold text-[#3a2404] border-gold" },
   { value: "UNKNOWN", label: "Offen", activeClass: "bg-gray-200 text-foreground border-gray-300" },
 ];
 

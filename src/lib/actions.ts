@@ -73,6 +73,23 @@ export async function bulkImportPlayersAction(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function renamePlayerAction(playerId: string, newName: string) {
+  await requireAdmin();
+  const name = newName.trim();
+  if (!name) return;
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (player.name === name) return;
+  // Alter Name bleibt als Alias hinterlegt, damit z.B. der Spielerplus-
+  // CSV-Import (der ggf. noch den alten Namen liefert, etwa nach Heirat)
+  // den Spieler weiterhin zuordnen kann.
+  await prisma.player.update({
+    where: { id: playerId },
+    data: { name, alias: player.name },
+  });
+  revalidatePath("/admin/players");
+  revalidatePath("/");
+}
+
 export async function togglePlayerActiveAction(playerId: string, active: boolean) {
   await requireAdmin();
   await prisma.player.update({ where: { id: playerId }, data: { active } });
@@ -137,7 +154,7 @@ export async function deleteMatchAction(matchId: string) {
 export async function setAttendanceAction(
   matchId: string,
   playerId: string,
-  status: "ZUSAGE" | "ABSAGE" | "UNKNOWN"
+  status: "ZUSAGE" | "ABSAGE" | "UNSICHER" | "UNKNOWN"
 ) {
   await requireAdmin();
   await prisma.attendance.upsert({

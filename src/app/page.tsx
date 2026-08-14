@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { buildPlayerOverview } from "@/lib/kasten";
 import { isAdmin } from "@/lib/auth";
+import { startOfBerlinDay } from "@/lib/timezone";
 import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
@@ -11,16 +12,20 @@ function formatDate(d: Date) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "Europe/Berlin",
   });
 }
 
 function formatTime(d: Date) {
-  return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
 }
 
 export default async function HomePage() {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const startOfToday = startOfBerlinDay();
 
   const [nextMatch, overview, admin] = await Promise.all([
     prisma.match.findFirst({

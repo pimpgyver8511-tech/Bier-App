@@ -1,5 +1,6 @@
 import ical, { type CalendarResponse, type VEvent } from "node-ical";
 import { prisma } from "@/lib/db";
+import { withBerlinTime } from "@/lib/timezone";
 
 export type IcsSyncResult = {
   ok: boolean;
@@ -11,39 +12,6 @@ export type IcsSyncResult = {
 function textValue(v: string | { val: string } | undefined): string | null {
   if (v === undefined) return null;
   return typeof v === "string" ? v : v.val;
-}
-
-function berlinOffsetMinutes(utcGuess: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Berlin",
-    timeZoneName: "shortOffset",
-  }).formatToParts(utcGuess);
-  const offsetStr = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT+1";
-  const match = offsetStr.match(/GMT([+-]\d+)/);
-  return (match ? parseInt(match[1], 10) : 1) * 60;
-}
-
-/**
- * Der Spielerplus-Kalenderexport liefert als DTSTART die Treffzeit (z.B.
- * 18:00), nicht den tatsaechlichen Anstoss (19:00). Ersetzt die Uhrzeit
- * eines Termins durch 19:00 Uhr Ortszeit Berlin, behaelt aber das
- * Kalenderdatum aus dem Feed bei - DST-sicher ueber Intl statt fester
- * Stunden-Offsets.
- */
-function withBerlinKickoffTime(instant: Date, hour: number, minute: number): Date {
-  const dateParts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(instant);
-  const y = Number(dateParts.find((p) => p.type === "year")!.value);
-  const m = Number(dateParts.find((p) => p.type === "month")!.value);
-  const d = Number(dateParts.find((p) => p.type === "day")!.value);
-
-  const naiveUtc = Date.UTC(y, m - 1, d, hour, minute);
-  const offsetMin = berlinOffsetMinutes(new Date(naiveUtc));
-  return new Date(naiveUtc - offsetMin * 60_000);
 }
 
 /**
@@ -123,7 +91,7 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
     if (!isHome && !isAway) continue;
 
     const opponent = (isHome ? teamB : teamA).trim();
-    const date = withBerlinKickoffTime(event.start as Date, 19, 0);
+    const date = withBerlinTime(event.start as Date, 19, 0);
     const location = textValue(event.location);
 
     const existing = await prisma.match.findUnique({ where: { externalId: uid } });
@@ -196,13 +164,30 @@ function parseCsvLine(line: string, delimiter = ";"): string[] {
   return fields;
 }
 
+const STATUS_COLUMNS = ["status", "participation_status", "response", "teilnahme", "teilnahmestatus"];
+
+type AttendanceStatusValue = "ZUSAGE" | "ABSAGE" | "UNSICHER" | "UNKNOWN";
+
+function mapStatusValue(raw: string): AttendanceStatusValue {
+  const v = raw.trim().toLowerCase();
+  if (["zugesagt", "zusage", "yes", "confirmed", "attending", "ja"].includes(v)) return "ZUSAGE";
+  if (["abgesagt", "absage", "no", "declined", "nein"].includes(v)) return "ABSAGE";
+  if (["unsicher", "maybe", "vielleicht", "tentative"].includes(v)) return "UNSICHER";
+  return "UNKNOWN";
+}
+
 /**
  * Spielerplus bietet keinen Bulk-Export der Zusagen, nur pro Spiel einen
  * manuellen CSV-Export ("Teilnehmer exportieren"). Diese Datei enthaelt nur
  * die Spieler, die bereits zugesagt haben (Spalte "user_name") - kein
  * Live-Sync, sondern eine Momentaufnahme, die der Admin bei Bedarf erneut
- * importieren kann. Bestehende manuelle Aenderungen (Absage/Offen) an
- * Spielern, die NICHT in der Datei stehen, bleiben unangetastet.
+ * importieren kann. Bestehende manuelle Aenderungen an Spielern, die NICHT
+ * in der Datei stehen, bleiben unangetastet.
+ *
+ * Falls die Datei zusaetzlich eine Status-Spalte enthaelt (z.B. "status"),
+ * wird der Wert nach Zusage/Absage/Unsicher gemappt statt pauschal Zusage
+ * anzunehmen. Der bisher gesehene Export-Typ hat keine solche Spalte -
+ * dann bleibt es beim bisherigen Verhalten (jede gelistete Zeile = Zusage).
  */
 export async function importAttendanceFromCsv(
   matchId: string,
@@ -223,33 +208,47 @@ export async function importAttendanceFromCsv(
       unmatchedNames: [],
     };
   }
+  const statusIdx = header.findIndex((h) => STATUS_COLUMNS.includes(h.trim().toLowerCase()));
 
-  const names = lines
+  const rows = lines
     .slice(1)
-    .map((line) => parseCsvLine(line)[nameIdx]?.trim())
-    .filter((n): n is string => Boolean(n));
+    .map((line) => {
+      const fields = parseCsvLine(line);
+      const name = fields[nameIdx]?.trim();
+      if (!name) return null;
+      const status: AttendanceStatusValue = statusIdx === -1 ? "ZUSAGE" : mapStatusValue(fields[statusIdx] ?? "");
+      return { name, status };
+    })
+    .filter((r): r is { name: string; status: AttendanceStatusValue } => r !== null);
 
   const players = await prisma.player.findMany();
-  const playerByName = new Map(players.map((p) => [p.name.trim().toLowerCase(), p.id]));
+  const playerByName = new Map<string, string>();
+  for (const p of players) {
+    playerByName.set(p.name.trim().toLowerCase(), p.id);
+    if (p.alias) playerByName.set(p.alias.trim().toLowerCase(), p.id);
+  }
 
   let matchedCount = 0;
   const unmatchedNames: string[] = [];
-  for (const name of names) {
-    const playerId = playerByName.get(name.toLowerCase());
+  for (const row of rows) {
+    const playerId = playerByName.get(row.name.toLowerCase());
     if (!playerId) {
-      unmatchedNames.push(name);
+      unmatchedNames.push(row.name);
       continue;
     }
     await prisma.attendance.upsert({
       where: { matchId_playerId: { matchId, playerId } },
-      update: { status: "ZUSAGE", source: "SPIELERPLUS" },
-      create: { matchId, playerId, status: "ZUSAGE", source: "SPIELERPLUS" },
+      update: { status: row.status, source: "SPIELERPLUS" },
+      create: { matchId, playerId, status: row.status, source: "SPIELERPLUS" },
     });
     matchedCount++;
   }
 
   const message =
-    `${matchedCount} Spieler als Zusage übernommen.` +
+    `${matchedCount} Spieler übernommen.` +
+    (statusIdx === -1
+      ? " (Datei ohne Status-Spalte, alle als Zusage übernommen.)"
+      : "") +
     (unmatchedNames.length > 0
       ? ` ${unmatchedNames.length} Name(n) nicht zugeordnet: ${unmatchedNames.join(", ")}`
       : "");

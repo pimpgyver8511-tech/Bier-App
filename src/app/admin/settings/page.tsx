@@ -112,7 +112,11 @@ export default async function SettingsPage() {
 
         {spielerplus?.lastSyncAt && (
           <p className="text-sm text-muted">
-            Letzter Sync: {new Date(spielerplus.lastSyncAt).toLocaleString("de-DE")} –{" "}
+            Letzter Sync:{" "}
+            {new Date(spielerplus.lastSyncAt).toLocaleString("de-DE", {
+              timeZone: "Europe/Berlin",
+            })}{" "}
+            –{" "}
             {spielerplus.lastSyncOk ? "✅ erfolgreich" : "❌ fehlgeschlagen"}
             {spielerplus.lastSyncMsg ? ` (${spielerplus.lastSyncMsg})` : ""}
           </p>

@@ -2,6 +2,7 @@ import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createMatchAction, deleteMatchAction } from "@/lib/actions";
+import { startOfBerlinDay } from "@/lib/timezone";
 import Link from "next/link";
 
 function formatDateTime(d: Date) {
@@ -12,14 +13,14 @@ function formatDateTime(d: Date) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Europe/Berlin",
   });
 }
 
 export default async function MatchesPage() {
   if (!(await isAdmin())) redirect("/admin");
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const startOfToday = startOfBerlinDay();
 
   const [matches, players] = await Promise.all([
     prisma.match.findMany({
