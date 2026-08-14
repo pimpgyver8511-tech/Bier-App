@@ -4,7 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { AttendanceRow } from "./AttendanceRow";
 import { AttendanceCsvImport } from "./AttendanceCsvImport";
-import { AssignmentPicker } from "./AssignmentPicker";
+import { AssignmentPicker } from "@/components/AssignmentPicker";
 import { deleteAssignmentAction } from "@/lib/actions";
 
 function formatDateTime(d: Date) {

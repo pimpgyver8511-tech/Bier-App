@@ -5,6 +5,7 @@ import { startOfBerlinDay } from "@/lib/timezone";
 import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
+import { AssignmentPicker } from "@/components/AssignmentPicker";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -114,6 +115,8 @@ export default async function HomePage() {
                       </span>
                     ))}
                   </div>
+                ) : admin ? (
+                  <AssignmentPicker matchId={nextMatch.id} />
                 ) : (
                   <p className="text-sm text-muted italic">
                     Noch nicht festgelegt.
