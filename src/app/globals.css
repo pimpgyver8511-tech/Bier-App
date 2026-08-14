@@ -36,112 +36,122 @@ body {
   color: var(--foreground);
 }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  box-shadow: 0 1px 2px rgba(15, 69, 38, 0.06);
-}
+/*
+ * In einem eigenen "components"-Layer, damit Tailwind-Utility-Klassen (z.B.
+ * w-36, flex-1) diese Basis-Styles per Cascade-Layer-Reihenfolge immer
+ * ueberstimmen koennen - unabhaengig davon, in welcher Reihenfolge die
+ * Klassen im className-String stehen. Ohne @layer gewinnt sonst schlicht
+ * die spaeter im Stylesheet stehende Regel (hier: .input mit width:100%),
+ * auch wenn eine Utility-Klasse wie w-36 eigentlich "spezifischer" gemeint war.
+ */
+@layer components {
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(15, 69, 38, 0.06);
+  }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  border-radius: 0.65rem;
-  padding: 0.55rem 1rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition: filter 0.15s ease, transform 0.05s ease;
-  cursor: pointer;
-  border: 1px solid transparent;
-}
-.btn:active {
-  transform: translateY(1px);
-}
-.btn-primary {
-  background: var(--brand);
-  color: white;
-}
-.btn-primary:hover {
-  filter: brightness(1.08);
-}
-.btn-gold {
-  background: var(--gold);
-  color: #3a2404;
-}
-.btn-gold:hover {
-  filter: brightness(1.05);
-}
-.btn-outline {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--foreground);
-}
-.btn-outline:hover {
-  background: var(--brand-light);
-  border-color: var(--brand);
-}
-.btn-danger {
-  background: transparent;
-  border-color: var(--danger);
-  color: var(--danger);
-}
-.btn-danger:hover {
-  background: var(--danger);
-  color: white;
-}
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 0.65rem;
+    padding: 0.55rem 1rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: filter 0.15s ease, transform 0.05s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn-primary {
+    background: var(--brand);
+    color: white;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+  }
+  .btn-gold {
+    background: var(--gold);
+    color: #3a2404;
+  }
+  .btn-gold:hover {
+    filter: brightness(1.05);
+  }
+  .btn-outline {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--foreground);
+  }
+  .btn-outline:hover {
+    background: var(--brand-light);
+    border-color: var(--brand);
+  }
+  .btn-danger {
+    background: transparent;
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+  .btn-danger:hover {
+    background: var(--danger);
+    color: white;
+  }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  border-radius: 999px;
-  padding: 0.2rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.badge-green {
-  background: var(--brand-light);
-  color: var(--brand-dark);
-}
-.badge-gold {
-  background: #fbeed2;
-  color: var(--gold-dark);
-}
-.badge-gray {
-  background: #eef1ed;
-  color: var(--muted);
-}
-.badge-red {
-  background: #fbe4e1;
-  color: var(--danger);
-}
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-green {
+    background: var(--brand-light);
+    color: var(--brand-dark);
+  }
+  .badge-gold {
+    background: #fbeed2;
+    color: var(--gold-dark);
+  }
+  .badge-gray {
+    background: #eef1ed;
+    color: var(--muted);
+  }
+  .badge-red {
+    background: #fbe4e1;
+    color: var(--danger);
+  }
 
-.input {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
-  background: white;
-  color: var(--foreground);
-}
-.input:focus {
-  outline: 2px solid var(--brand);
-  outline-offset: 1px;
-}
+  .input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    background: white;
+    color: var(--foreground);
+  }
+  .input:focus {
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+  }
 
-.hop-divider {
-  height: 4px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--gold) 0px,
-    var(--gold) 10px,
-    var(--brand) 10px,
-    var(--brand) 20px
-  );
-  border-radius: 999px;
-  opacity: 0.6;
+  .hop-divider {
+    height: 4px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--gold) 0px,
+      var(--gold) 10px,
+      var(--brand) 10px,
+      var(--brand) 20px
+    );
+    border-radius: 999px;
+    opacity: 0.6;
+  }
 }

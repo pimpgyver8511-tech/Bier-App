@@ -5,29 +5,45 @@ import {
   toggleAssignmentFulfilledAction,
   updateAssignmentReasonAction,
   deleteAssignmentAction,
+  setAssignmentDateAction,
 } from "@/lib/actions";
 
 export function KastenLine({
   id,
-  dateLabel,
+  matchDateIso,
   reason: initialReason,
   fulfilled: initialFulfilled,
 }: {
   id: string;
-  dateLabel: string;
+  matchDateIso: string | null;
   reason: string;
   fulfilled: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [reason, setReason] = useState(initialReason);
   const [fulfilled, setFulfilled] = useState(initialFulfilled);
+  const [date, setDate] = useState(matchDateIso ?? "");
   const [removed, setRemoved] = useState(false);
 
   if (removed) return null;
 
   return (
     <div className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
-      <span className="text-xs text-muted whitespace-nowrap w-28 shrink-0">{dateLabel}</span>
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        onBlur={() => {
+          if (date) {
+            startTransition(() => {
+              setAssignmentDateAction(id, date);
+            });
+          }
+        }}
+        title="Spieltag/Datum pflegen"
+        className="input text-xs w-36 shrink-0"
+        disabled={isPending}
+      />
       <input
         type="text"
         value={reason}

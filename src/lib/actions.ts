@@ -200,6 +200,26 @@ export async function updateAssignmentReasonAction(
   revalidatePath("/");
 }
 
+export async function setAssignmentDateAction(assignmentId: string, dateStr: string) {
+  await requireAdmin();
+  if (!dateStr) return;
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return;
+
+  let match = await prisma.match.findFirst({ where: { date } });
+  if (!match) {
+    match = await prisma.match.create({ data: { date } });
+  }
+
+  await prisma.kastenAssignment.update({
+    where: { id: assignmentId },
+    data: { matchId: match.id },
+  });
+  revalidatePath("/admin/history");
+  revalidatePath("/verlauf");
+  revalidatePath("/");
+}
+
 export async function addManualKastenAction(playerId: string, reason: string) {
   await requireAdmin();
   await prisma.kastenAssignment.create({

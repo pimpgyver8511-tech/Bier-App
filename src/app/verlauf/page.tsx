@@ -33,7 +33,8 @@ export default async function VerlaufPage() {
       <div>
         <h1 className="text-2xl font-bold">Kasten-Verlauf</h1>
         <p className="text-muted text-sm mt-1">
-          Wer hat wann und warum einen Kasten mitgebracht.
+          Vollständiges Protokoll: wer hat wann und warum einen Kasten mitgebracht. Diese
+          Daten sind die Grundlage für den Cooldown zwischen zwei Kästen desselben Spielers.
         </p>
       </div>
 

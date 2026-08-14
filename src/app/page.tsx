@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { buildPlayerOverview } from "@/lib/kasten";
 import Link from "next/link";
+import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -32,6 +33,19 @@ export default async function HomePage() {
   ]);
 
   const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
+
+  const queueRows: QueueRow[] = overview.map((p) => ({
+    playerId: p.playerId,
+    name: p.name,
+    lastLabel: p.lastAssignmentDate
+      ? p.daysSinceLast !== null && p.daysSinceLast >= 0
+        ? `${formatDate(p.lastAssignmentDate)} (vor ${p.daysSinceLast} Tagen)`
+        : `${formatDate(p.lastAssignmentDate)} (anstehend)`
+      : "noch nie",
+    totalKasten: p.totalKasten,
+    open: p.open,
+    cooldownRemainingDays: p.cooldownRemainingDays,
+  }));
 
   return (
     <div className="space-y-8">
@@ -86,55 +100,18 @@ export default async function HomePage() {
       </section>
 
       <section className="card">
-        <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="text-lg font-bold">Kasten-Warteschlange</h2>
-          <Link href="/verlauf" className="text-sm text-brand font-semibold hover:underline">
-            Verlauf ansehen →
+        <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-lg font-bold">Kasten-Warteschlange</h2>
+            <p className="text-xs text-muted mt-0.5">
+              Aktueller Stand: wer hat gerade einen Kasten offen.
+            </p>
+          </div>
+          <Link href="/verlauf" className="text-sm text-brand font-semibold hover:underline whitespace-nowrap">
+            Volle Historie ansehen →
           </Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-border">
-                <th className="px-5 sm:px-6 py-2.5 font-medium">Spieler</th>
-                <th className="px-3 py-2.5 font-medium">Letzter/nächster Kasten</th>
-                <th className="px-3 py-2.5 font-medium">Insgesamt</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {overview.map((p) => (
-                <tr key={p.playerId} className="border-b border-border last:border-0">
-                  <td className="px-5 sm:px-6 py-3 font-medium">{p.name}</td>
-                  <td className="px-3 py-3 text-muted">
-                    {p.lastAssignmentDate
-                      ? p.daysSinceLast !== null && p.daysSinceLast >= 0
-                        ? `${formatDate(p.lastAssignmentDate)} (vor ${p.daysSinceLast} Tagen)`
-                        : `${formatDate(p.lastAssignmentDate)} (anstehend)`
-                      : "noch nie"}
-                  </td>
-                  <td className="px-3 py-3 text-muted">{p.totalKasten}×</td>
-                  <td className="px-3 py-3">
-                    {p.open ? (
-                      <span className="badge badge-green">🍺 hat einen offen</span>
-                    ) : (
-                      <span className="badge badge-gray">
-                        ⏳ noch {p.cooldownRemainingDays} Tage Pause
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {overview.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-5 sm:px-6 py-6 text-center text-muted">
-                    Noch keine Spieler angelegt.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <PlayerQueueTable rows={queueRows} />
       </section>
     </div>
   );

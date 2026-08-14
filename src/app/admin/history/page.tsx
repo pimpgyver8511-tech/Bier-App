@@ -5,8 +5,8 @@ import { KastenLine } from "./KastenLine";
 import { AddKastenForm } from "./AddKastenForm";
 import { AddKastenForNewPlayer } from "./AddKastenForNewPlayer";
 
-function formatDate(d: Date) {
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+function toIsoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
 }
 
 async function loadHistoryData() {
@@ -78,13 +78,7 @@ export default async function AdminHistoryPage() {
                 <KastenLine
                   key={a.id}
                   id={a.id}
-                  dateLabel={
-                    a.match
-                      ? formatDate(a.match.date)
-                      : a.fulfilled
-                        ? formatDate(a.fulfilledAt ?? a.createdAt)
-                        : "kein Spieltag"
-                  }
+                  matchDateIso={a.match ? toIsoDate(a.match.date) : null}
                   reason={a.reason ?? ""}
                   fulfilled={a.fulfilled}
                 />
