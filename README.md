@@ -37,11 +37,10 @@ Admin-Bereich unter `/admin` (Login mit `ADMIN_PASSWORD` aus der `.env`).
 | `DATABASE_URL` | ja | Postgres-Connection-String, z. B. `postgresql://user:pw@host:5432/db?schema=public` |
 | `ADMIN_PASSWORD` | ja | Passwort für den Admin-Bereich |
 | `SESSION_SECRET` | ja | Zufälliger String zum Signieren der Admin-Session |
-| `SPIELERPLUS_EMAIL` / `SPIELERPLUS_PASSWORD` | optional | Login für den automatischen Anwesenheits-Sync |
-| `SPIELERPLUS_TEAM_URL` | optional | Alternative zur Team-URL in den Admin-Einstellungen |
 
-Ohne die drei letzten Werte funktioniert die App normal – Anwesenheit wird
-dann manuell im Admin-Bereich gepflegt.
+Die Spielerplus-Kalender-URL für den Spielplan-Sync wird nicht über eine
+Umgebungsvariable, sondern direkt im Admin-Bereich unter Einstellungen
+gepflegt (siehe nächster Abschnitt).
 
 ## Wie die Kasten-Zuteilung funktioniert
 
@@ -56,30 +55,35 @@ dann manuell im Admin-Bereich gepflegt.
 4. Der Admin kann den Vorschlag übernehmen oder abweichend eigene Spieler
    auswählen, dazu optional eine Begründung eintragen (ersetzt die bisherige
    separate Google-Notes-Liste – die Begründungen leben jetzt direkt in der
-   Kasten-Historie unter `/verlauf` bzw. Admin → Kasten-Historie).
+   Kasten-Historie unter Admin → Kasten-Historie).
 
 ## Spielerplus-Sync
 
 Spielerplus bietet keine offizielle öffentliche API. Ein automatischer
-Login+Scraping-Sync (per Playwright/Chromium) wurde gebaut, musste aber
+Login+Scraping-Sync (per Playwright/Chromium) wurde probiert, musste aber
 wieder entfernt werden: Next.js bindet `playwright-core` schon beim Build
 fest in die serverseitige Funktion ein, sobald das Paket irgendwo im Code
 vorkommt (auch bei bedingtem/dynamischem Import) – auf Vercel führte das
 dazu, dass **die gesamte App** mit „Cannot find module" abstürzte, nicht nur
 der Sync selbst. Da auf Vercel ohnehin kein Chromium-Browser installiert
-ist, wurde die Automatisierung aus dem Deployment entfernt.
+ist, wurde dieser Ansatz verworfen.
 
-Der Sync-Button im Admin-Bereich zeigt aktuell nur einen Hinweis, dass er in
-diesem Hosting nicht verfügbar ist. **Die Anwesenheitspflege funktioniert
-davon unabhängig jederzeit voll über die drei Buttons (Zusage/Absage/Offen)
-pro Spieler** – das ist der unterstützte Standardweg.
+Stattdessen nutzt die App den **.ics-Kalender-Export**, den Spielerplus unter
+„Kalender abonnieren" pro Team anbietet: ein öffentlicher, tokenbasierter
+Link ohne Login, der sich per einfachem `fetch()` abrufen lässt – kein
+Browser, kein Chromium nötig, läuft problemlos in einer normalen
+Vercel-Funktion. Die URL wird unter Admin → Einstellungen hinterlegt; der
+Sync-Button legt daraus neue `Match`-Einträge an bzw. aktualisiert
+bestehende (Datum, Ort, Heim/Auswärts, Gegner), erkannt über die
+Spielerplus-Termin-ID (`Match.externalId`). Der eigene Vereinsname wird
+automatisch aus dem `X-WR-CALDESC`-Feld des Kalenders gelesen, um bei jedem
+Spiel Heim/Auswärts und Gegner aus dem Termin-Titel abzuleiten.
 
-Für später, falls die Automatisierung doch noch gewünscht ist: am
-sinnvollsten als separater kleiner Dienst außerhalb von Vercel (z. B. ein
-eigener kleiner Server oder ein geplanter Job auf einem Anbieter mit
-persistenter Node-Umgebung und installiertem Chromium), der die Anwesenheit
-per API/Datenbankzugriff in die Bier App zurückschreibt, statt in derselben
-Vercel-Funktion zu laufen.
+**Wichtig:** Der Kalender-Export enthält keine Zusagen/Absagen einzelner
+Spieler (personenbezogene Daten, die Spielerplus nicht öffentlich exportiert)
+– nur den Spielplan selbst. Die Anwesenheitspflege bleibt deshalb weiterhin
+manuell über die drei Buttons (Zusage/Absage/Offen) pro Spieler auf der
+jeweiligen Spiel-Seite – das ist und bleibt der unterstützte Standardweg.
 
 ## Deployment auf Vercel
 
@@ -93,7 +97,6 @@ Vercel-Funktion zu laufen.
 3. **Weitere Umgebungsvariablen** unter *Settings → Environment Variables* setzen:
    - `ADMIN_PASSWORD` – dein Admin-Passwort
    - `SESSION_SECRET` – langer Zufallsstring
-   - optional `SPIELERPLUS_EMAIL`, `SPIELERPLUS_PASSWORD`, `SPIELERPLUS_TEAM_URL`
 4. **Deploy auslösen** – danach automatisch bei jedem Push auf den verbundenen Branch.
 5. **Datenbank einrichten/aktualisieren**: einloggen unter `/admin`, zu
    **Einstellungen** gehen (Abschnitt "Datenbank-Wartung") und auf
@@ -116,9 +119,8 @@ prisma/schema.prisma        Datenmodell (Player, Match, Attendance, KastenAssign
 src/lib/db.ts                Prisma-Client-Singleton
 src/lib/auth.ts               Admin-Session (Passwort + signiertes Cookie)
 src/lib/kasten.ts             Regel-Engine für die faire Kasten-Zuteilung
-src/lib/spielerplus.ts        Experimenteller Spielerplus-Sync
+src/lib/spielerplus.ts        Spielplan-Sync über den Spielerplus-.ics-Kalenderexport
 src/lib/actions.ts            Server Actions (alle Schreibzugriffe)
 src/app/page.tsx              Öffentliche Startseite (nächstes Spiel, Warteschlange)
-src/app/verlauf/page.tsx      Öffentliche Kasten-Historie
 src/app/admin/**              Admin-Bereich (Login, Spieler, Spiele, Historie, Einstellungen)
 ```

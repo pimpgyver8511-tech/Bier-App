@@ -91,6 +91,14 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `ALTER TABLE "KastenImportRow" ADD CONSTRAINT "KastenImportRow_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
     ],
   },
+  {
+    name: "20260814080200_match_external_id_and_ics_url",
+    statements: [
+      `ALTER TABLE "Match" ADD COLUMN "externalId" TEXT`,
+      `ALTER TABLE "SpielerplusConfig" RENAME COLUMN "teamUrl" TO "icsUrl"`,
+      `CREATE UNIQUE INDEX "Match_externalId_key" ON "Match"("externalId")`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

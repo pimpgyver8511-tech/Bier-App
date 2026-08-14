@@ -1,8 +1,9 @@
 import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { updateSettingsAction, updateSpielerplusUrlAction } from "@/lib/actions";
+import { updateSettingsAction, updateIcsUrlAction } from "@/lib/actions";
 import { DbSetupButton } from "@/components/DbSetupButton";
+import { IcsSyncButton } from "@/components/IcsSyncButton";
 
 export default async function SettingsPage() {
   if (!(await isAdmin())) redirect("/admin");
@@ -21,10 +22,6 @@ export default async function SettingsPage() {
   } catch {
     dbReady = false;
   }
-
-  const credentialsConfigured = Boolean(
-    process.env.SPIELERPLUS_EMAIL && process.env.SPIELERPLUS_PASSWORD
-  );
 
   return (
     <div className="space-y-6">
@@ -86,32 +83,32 @@ export default async function SettingsPage() {
       </section>
 
       <section className="card p-5 sm:p-6 space-y-4">
-        <h2 className="text-lg font-bold">Spielerplus-Sync</h2>
+        <h2 className="text-lg font-bold">Spielplan-Sync (Spielerplus)</h2>
         <p className="text-sm text-muted">
-          Zugangsdaten (E-Mail/Passwort) werden nicht über die Weboberfläche gepflegt, sondern
-          als Umgebungsvariablen <code className="bg-brand-light px-1 rounded">SPIELERPLUS_EMAIL</code>{" "}
-          und <code className="bg-brand-light px-1 rounded">SPIELERPLUS_PASSWORD</code> gesetzt –
-          aus Sicherheitsgründen. Status:{" "}
-          {credentialsConfigured ? (
-            <span className="badge badge-green">konfiguriert</span>
-          ) : (
-            <span className="badge badge-gray">nicht konfiguriert</span>
-          )}
+          Spielerplus bietet unter „Kalender abonnieren&rdquo; einen persönlichen .ics-Link an
+          (Team-Kalender → Kalender-Symbol → „Kalender abonnieren&rdquo;). Der wird hier
+          eingetragen und beim Synchronisieren einfach per HTTP abgerufen – kein Login, kein
+          Browser nötig.
+          Übernommen werden Datum, Ort, Heim/Auswärts und Gegner neuer bzw. verschobener Spiele.
+          Die Zusagen/Absagen der einzelnen Spieler stehen nicht im Kalender-Export und bleiben
+          weiterhin manuell auf der jeweiligen Spiel-Seite zu pflegen.
         </p>
 
-        <form action={updateSpielerplusUrlAction} className="space-y-2 max-w-lg">
+        <form action={updateIcsUrlAction} className="space-y-2 max-w-lg">
           <label className="text-sm font-medium text-muted block mb-1">
-            Team-/Spielplan-URL bei Spielerplus
+            Spielerplus-Kalender-URL (.ics)
           </label>
           <input
             type="url"
-            name="teamUrl"
-            placeholder="https://www.spielerplus.de/team/..."
-            defaultValue={spielerplus?.teamUrl ?? ""}
+            name="icsUrl"
+            placeholder="https://www.spielerplus.de/events/ics?t=...&u=..."
+            defaultValue={spielerplus?.icsUrl ?? ""}
             className="input"
           />
           <button type="submit" className="btn btn-outline text-sm">Speichern</button>
         </form>
+
+        <IcsSyncButton />
 
         {spielerplus?.lastSyncAt && (
           <p className="text-sm text-muted">
@@ -120,14 +117,6 @@ export default async function SettingsPage() {
             {spielerplus.lastSyncMsg ? ` (${spielerplus.lastSyncMsg})` : ""}
           </p>
         )}
-
-        <p className="text-xs text-muted">
-          Hinweis: Der Sync loggt sich mit deinem Spielerplus-Account ein und liest die
-          Anwesenheit für das jeweilige Spiel aus. Das ist eine inoffizielle Automatisierung
-          ohne öffentliche API von Spielerplus – ändert Spielerplus seine Seite, kann der Sync
-          fehlschlagen. Die Anwesenheit lässt sich in diesem Fall jederzeit manuell auf der
-          Spiel-Seite pflegen.
-        </p>
       </section>
     </div>
   );

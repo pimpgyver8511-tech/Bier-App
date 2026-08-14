@@ -10,7 +10,7 @@ import {
   isAdmin,
 } from "@/lib/auth";
 import { buildAssignmentSuggestion } from "@/lib/kasten";
-import { runSpielerplusSync } from "@/lib/spielerplus";
+import { syncMatchScheduleFromIcs } from "@/lib/spielerplus";
 import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
 
@@ -149,15 +149,6 @@ export async function setAttendanceAction(
   revalidatePath("/");
 }
 
-export async function syncSpielerplusAction(matchId: string) {
-  await requireAdmin();
-  const result = await runSpielerplusSync(matchId);
-  revalidatePath(`/admin/matches/${matchId}`);
-  revalidatePath("/admin/settings");
-  revalidatePath("/");
-  return result;
-}
-
 // ---------- Kasten-Zuweisung ----------
 
 export async function confirmAssignmentAction(
@@ -265,15 +256,24 @@ export async function updateSettingsAction(formData: FormData) {
   revalidatePath("/admin/settings");
 }
 
-export async function updateSpielerplusUrlAction(formData: FormData) {
+export async function updateIcsUrlAction(formData: FormData) {
   await requireAdmin();
-  const teamUrl = String(formData.get("teamUrl") ?? "").trim() || null;
+  const icsUrl = String(formData.get("icsUrl") ?? "").trim() || null;
   await prisma.spielerplusConfig.upsert({
     where: { id: 1 },
-    update: { teamUrl },
-    create: { id: 1, teamUrl },
+    update: { icsUrl },
+    create: { id: 1, icsUrl },
   });
   revalidatePath("/admin/settings");
+}
+
+export async function syncMatchScheduleAction() {
+  await requireAdmin();
+  const result = await syncMatchScheduleFromIcs();
+  revalidatePath("/admin/matches");
+  revalidatePath("/admin/settings");
+  revalidatePath("/");
+  return result;
 }
 
 export async function runDbSetupAction() {

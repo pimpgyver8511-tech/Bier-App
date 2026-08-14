@@ -18,13 +18,12 @@ handische Pflege der Kasten-Historie, vor der Bier App).
   zu verbuchender Kasten-Anlass, aber noch nicht abschließend geklärt ob
   das schon irgendwo erfasst ist (siehe offene Frage unten).
 
-**Nächste große Priorität laut Jens (13.08.2026):** Abgleich der
-Spieler-Anwesenheit mit der Spielerplus-App. Der frühere automatische
-Sync-Versuch (Playwright/Chromium) musste wieder entfernt werden, weil er
-auf Vercel die ganze App zum Absturz brachte (siehe Commit-Historie /
-README, Abschnitt "Spielerplus-Sync") – dafür braucht es einen anderen
-Ansatz (z. B. separater Dienst außerhalb von Vercel). Wird bewusst auf
-eine spätere Session verschoben, hier nur als Merker festgehalten.
+**Update (14.08.2026):** Spielplan-Sync über den Spielerplus-.ics-Kalender
+gebaut (siehe README, Abschnitt "Spielerplus-Sync") – der frühere
+Playwright/Chromium-Ansatz brachte auf Vercel die ganze App zum Absturz und
+wurde deshalb verworfen. Der Kalenderexport liefert Datum/Ort/Gegner der
+Spiele automatisch, aber keine Zusagen/Absagen einzelner Spieler (nicht im
+Export enthalten) – Anwesenheit bleibt weiterhin manuell zu pflegen.
 
 **Status (14.08.2026, Update 2): Import-Werkstatt gebaut, Daten liegen bereit.**
 Unter Admin → **Import** (`/admin/import`) gibt es jetzt eine Seite, die
