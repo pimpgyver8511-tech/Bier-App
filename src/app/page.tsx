@@ -118,9 +118,14 @@ export default async function HomePage() {
               Aktueller Stand: wer hat gerade einen Kasten offen.
             </p>
           </div>
-          <Link href="/verlauf" className="text-sm text-brand font-semibold hover:underline whitespace-nowrap">
-            Volle Historie ansehen →
-          </Link>
+          {admin && (
+            <Link
+              href="/admin/history"
+              className="text-sm text-brand font-semibold hover:underline whitespace-nowrap"
+            >
+              Volle Historie ansehen →
+            </Link>
+          )}
         </div>
         <PlayerQueueTable rows={queueRows} />
       </section>

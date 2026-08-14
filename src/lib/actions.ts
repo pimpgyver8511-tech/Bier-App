@@ -230,7 +230,6 @@ export async function setAssignmentDateAction(assignmentId: string, dateStr: str
     data: { matchId: match.id },
   });
   revalidatePath("/admin/history");
-  revalidatePath("/verlauf");
   revalidatePath("/");
 }
 
@@ -244,7 +243,6 @@ export async function addManualKastenAction(playerId: string, reason: string) {
     },
   });
   revalidatePath("/admin/history");
-  revalidatePath("/verlauf");
   revalidatePath("/");
 }
 
@@ -364,7 +362,6 @@ export async function confirmImportRowAction(
   await prisma.kastenImportRow.delete({ where: { id: rowId } });
   revalidatePath("/admin/import");
   revalidatePath("/admin/history");
-  revalidatePath("/verlauf");
   revalidatePath("/");
 }
 
