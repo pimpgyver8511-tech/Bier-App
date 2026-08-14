@@ -47,7 +47,7 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
   if (!suggestion) {
     return (
       <button type="button" onClick={loadSuggestion} disabled={isPending} className="btn btn-gold">
-        🍺 Vorschlag berechnen
+        🍺 Kasten Zuweisung
       </button>
     );
   }

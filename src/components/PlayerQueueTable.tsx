@@ -59,9 +59,9 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
                     <button
                       type="button"
                       onClick={() => setDetailPlayerId(p.playerId)}
-                      className="badge badge-gold border-0 font-sans cursor-pointer hover:brightness-95 transition"
+                      className="badge badge-gold border-0 font-sans cursor-pointer hover:brightness-95 transition underline decoration-dotted decoration-2 underline-offset-2"
                     >
-                      🍺 {p.pendingCount}× ausstehend
+                      🍺 {p.pendingCount}× ausstehend <span aria-hidden="true">ⓘ</span>
                     </button>
                   ) : p.nextScheduledLabel ? (
                     <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
