@@ -63,7 +63,7 @@ export default async function HomePage() {
       <section className="card overflow-hidden relative">
         <div className="relative h-56 sm:h-72">
           <Image
-            src="/bierbeauftragter.jpg"
+            src="/bierbeauftragter-v2.jpg"
             alt="Der Bierbeauftragte"
             fill
             priority
