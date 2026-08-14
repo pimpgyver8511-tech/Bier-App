@@ -162,21 +162,11 @@ export default async function HomePage() {
       </section>
 
       <section className="card">
-        <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-lg font-bold">Kasten-Überblick</h2>
-            <p className="text-xs text-muted mt-0.5">
-              Aktueller Stand: wer hat gerade einen Kasten offen.
-            </p>
-          </div>
-          {admin && (
-            <Link
-              href="/admin/history"
-              className="text-sm text-brand font-semibold hover:underline whitespace-nowrap"
-            >
-              Volle Historie ansehen →
-            </Link>
-          )}
+        <div className="px-5 sm:px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-bold">Kasten-Überblick</h2>
+          <p className="text-xs text-muted mt-0.5">
+            Aktueller Stand: wer hat gerade einen Kasten offen.
+          </p>
         </div>
         <PlayerQueueTable rows={queueRows} />
       </section>
