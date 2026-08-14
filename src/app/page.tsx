@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { buildPlayerOverview } from "@/lib/kasten";
 import { isAdmin } from "@/lib/auth";
 import Link from "next/link";
+import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 
 function formatDate(d: Date) {
@@ -53,11 +54,31 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
+      <section className="card overflow-hidden relative">
+        <div className="relative h-56 sm:h-72">
+          <Image
+            src="/bierbeauftragter.jpg"
+            alt="Der Bierbeauftragte"
+            fill
+            priority
+            className="object-cover"
+            style={{ objectPosition: "50% 22%" }}
+            sizes="(max-width: 640px) 100vw, 768px"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 px-5 sm:px-6 pb-4 sm:pb-5">
+            <h1 className="text-white text-xl sm:text-3xl font-extrabold drop-shadow-md">
+              Der Bierbeauftragte heißt euch willkommen!
+            </h1>
+          </div>
+        </div>
+      </section>
+
       <section className="card overflow-hidden">
         <div className="bg-brand-dark text-white px-5 sm:px-6 py-4">
-          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
             🍺 Nächstes Spiel
-          </h1>
+          </h2>
         </div>
         <div className="p-5 sm:p-6">
           {nextMatch ? (
