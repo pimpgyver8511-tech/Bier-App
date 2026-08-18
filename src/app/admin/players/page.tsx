@@ -9,6 +9,7 @@ import {
   deletePlayerAction,
 } from "@/lib/actions";
 import { PlayerNameEditor } from "./PlayerNameEditor";
+import { PlayerAliasEditor } from "./PlayerAliasEditor";
 
 export default async function PlayersPage() {
   if (!(await isAdmin())) redirect("/admin");
@@ -94,9 +95,7 @@ export default async function PlayersPage() {
               <tr key={p.id} className="border-b border-border last:border-0">
                 <td className="px-5 sm:px-6 py-3 font-medium min-w-[10rem]">
                   <PlayerNameEditor playerId={p.id} name={p.name} />
-                  {p.alias && (
-                    <p className="text-xs text-muted mt-0.5">vorher: {p.alias}</p>
-                  )}
+                  <PlayerAliasEditor playerId={p.id} alias={p.alias} />
                 </td>
                 <td className="px-3 py-3 text-muted">{counts.get(p.id) ?? 0}×</td>
                 <td className="px-3 py-3">

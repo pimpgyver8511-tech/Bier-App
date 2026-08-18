@@ -91,6 +91,16 @@ export async function renamePlayerAction(playerId: string, newName: string) {
   revalidatePath("/");
 }
 
+export async function updatePlayerAliasAction(playerId: string, alias: string) {
+  await requireAdmin();
+  await prisma.player.update({
+    where: { id: playerId },
+    data: { alias: alias.trim() || null },
+  });
+  revalidatePath("/admin/players");
+  revalidatePath("/");
+}
+
 export async function togglePlayerActiveAction(playerId: string, active: boolean) {
   await requireAdmin();
   await prisma.player.update({ where: { id: playerId }, data: { active } });
