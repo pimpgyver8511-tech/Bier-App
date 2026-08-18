@@ -1,6 +1,7 @@
 import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { fulfillPastMatchAssignments } from "@/lib/kasten";
 import { HistoryFilter } from "./HistoryFilter";
 import { AddKastenForNewPlayer } from "./AddKastenForNewPlayer";
 
@@ -9,6 +10,7 @@ function toIsoDate(d: Date) {
 }
 
 async function loadHistoryData() {
+  await fulfillPastMatchAssignments();
   return Promise.all([
     prisma.player.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.kastenAssignment.findMany({ include: { player: true, match: true } }),

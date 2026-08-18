@@ -2,6 +2,7 @@ import { isAdmin } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { fulfillPastMatchAssignments } from "@/lib/kasten";
 import { AttendanceRow } from "./AttendanceRow";
 import { AttendanceCsvImport } from "./AttendanceCsvImport";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
@@ -24,6 +25,8 @@ export default async function MatchDetailPage({
 }: PageProps<"/admin/matches/[id]">) {
   if (!(await isAdmin())) redirect("/admin");
   const { id } = await params;
+
+  await fulfillPastMatchAssignments();
 
   const match = await prisma.match.findUnique({
     where: { id },

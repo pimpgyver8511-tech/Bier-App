@@ -2,6 +2,27 @@ import { prisma } from "@/lib/db";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+/**
+ * Sobald ein Spiel vorbei ist, gilt ein dafuer zugeteilter, noch nicht als
+ * erledigt markierter Kasten automatisch als geliefert - ein Kasten wird bei
+ * diesem Verein nur bewusst zugeteilt (als Strafe), es braucht daher keine
+ * manuelle Bestaetigung mehr, sobald der Spieltag erreicht ist. Wird vor jeder
+ * Anzeige der Kasten-Uebersicht/-Historie aufgerufen, damit der Status immer
+ * aktuell ist, unabhaengig davon, wann zuletzt jemand die Seite besucht hat.
+ * Ueber den manuellen "erledigt"-Toggle kann das weiterhin korrigiert werden,
+ * falls ein Spieler trotz Zuteilung tatsaechlich nichts mitgebracht hat.
+ */
+export async function fulfillPastMatchAssignments(): Promise<void> {
+  await prisma.kastenAssignment.updateMany({
+    where: {
+      fulfilled: false,
+      matchId: { not: null },
+      match: { date: { lt: new Date() } },
+    },
+    data: { fulfilled: true, fulfilledAt: new Date() },
+  });
+}
+
 export type PlayerCandidate = {
   playerId: string;
   name: string;
@@ -162,6 +183,8 @@ function formatShortDate(d: Date): string {
  * Admin-Bereich gepflegt ist.
  */
 export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
+  await fulfillPastMatchAssignments();
+
   const [settings, players, assignments] = await Promise.all([
     getSettings(),
     prisma.player.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
