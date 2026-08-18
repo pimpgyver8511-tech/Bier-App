@@ -132,7 +132,7 @@ export type PlayerOverviewEntry = {
   name: string;
   totalKasten: number;
   pendingCount: number;
-  pendingReasons: string[];
+  pendingEntries: { id: string; reason: string }[];
   scheduledCount: number;
   nextScheduledLabel: string | null; // z.B. "bringt am 17.08."
   lastFulfilledDate: Date | null;
@@ -176,13 +176,13 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
     {
       total: number;
       pending: number;
-      pendingReasons: string[];
+      pendingEntries: { id: string; reason: string }[];
       scheduled: Date[];
       lastFulfilled: Date | null;
     }
   >();
   for (const p of players)
-    byPlayer.set(p.id, { total: 0, pending: 0, pendingReasons: [], scheduled: [], lastFulfilled: null });
+    byPlayer.set(p.id, { total: 0, pending: 0, pendingEntries: [], scheduled: [], lastFulfilled: null });
 
   for (const a of assignments) {
     const entry = byPlayer.get(a.playerId);
@@ -197,7 +197,7 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
       entry.scheduled.push(a.match.date);
     } else {
       entry.pending += 1;
-      entry.pendingReasons.push(a.reason || "Kein Grund angegeben");
+      entry.pendingEntries.push({ id: a.id, reason: a.reason || "Kein Grund angegeben" });
     }
   }
 
@@ -218,7 +218,7 @@ export async function buildPlayerOverview(): Promise<PlayerOverviewEntry[]> {
         name: p.name,
         totalKasten: info.total,
         pendingCount: info.pending,
-        pendingReasons: info.pendingReasons,
+        pendingEntries: info.pendingEntries,
         scheduledCount: info.scheduled.length,
         nextScheduledLabel:
           info.scheduled.length > 0 ? `bringt am ${formatShortDate(info.scheduled[0])}` : null,

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toggleAssignmentFulfilledAction } from "@/lib/actions";
 
 export type QueueRow = {
   playerId: string;
@@ -8,16 +10,19 @@ export type QueueRow = {
   lastLabel: string;
   totalKasten: number;
   pendingCount: number;
-  pendingReasons: string[];
+  pendingEntries: { id: string; reason: string }[];
   scheduledCount: number;
   nextScheduledLabel: string | null;
   open: boolean;
   cooldownRemainingDays: number | null;
 };
 
-export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
+export function PlayerQueueTable({ rows, admin }: { rows: QueueRow[]; admin: boolean }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [detailPlayerId, setDetailPlayerId] = useState<string | null>(null);
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -26,6 +31,16 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
   }, [rows, search]);
 
   const detailPlayer = rows.find((r) => r.playerId === detailPlayerId) ?? null;
+  const remainingEntries =
+    detailPlayer?.pendingEntries.filter((e) => !resolvedIds.has(e.id)) ?? [];
+
+  function markFulfilled(assignmentId: string) {
+    setResolvedIds((prev) => new Set(prev).add(assignmentId));
+    startTransition(async () => {
+      await toggleAssignmentFulfilledAction(assignmentId, true);
+      router.refresh();
+    });
+  }
 
   return (
     <div>
@@ -107,17 +122,33 @@ export function PlayerQueueTable({ rows }: { rows: QueueRow[] }) {
                 ✕
               </button>
             </div>
-            <p className="text-sm text-muted">
-              {detailPlayer.pendingCount}× ausstehend
-            </p>
-            <ul className="space-y-2">
-              {detailPlayer.pendingReasons.map((reason, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <span>🍺</span>
-                  <span>{reason}</span>
-                </li>
-              ))}
-            </ul>
+            {remainingEntries.length === 0 ? (
+              <p className="text-sm text-muted">Keine offenen Kästen mehr.</p>
+            ) : (
+              <>
+                <p className="text-sm text-muted">{remainingEntries.length}× ausstehend</p>
+                <ul className="space-y-2">
+                  {remainingEntries.map((entry) => (
+                    <li key={entry.id} className="flex items-start justify-between gap-2 text-sm">
+                      <span className="flex items-start gap-2">
+                        <span>🍺</span>
+                        <span>{entry.reason}</span>
+                      </span>
+                      {admin && (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => markFulfilled(entry.id)}
+                          className="badge badge-green border-0 font-sans cursor-pointer hover:brightness-95 transition shrink-0"
+                        >
+                          ✅ erledigt
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </div>
       )}

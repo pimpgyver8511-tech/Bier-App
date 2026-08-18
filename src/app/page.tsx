@@ -54,7 +54,7 @@ export default async function HomePage() {
       : "noch nie",
     totalKasten: p.totalKasten,
     pendingCount: p.pendingCount,
-    pendingReasons: p.pendingReasons,
+    pendingEntries: p.pendingEntries,
     scheduledCount: p.scheduledCount,
     nextScheduledLabel: p.nextScheduledLabel,
     open: p.open,
@@ -168,7 +168,7 @@ export default async function HomePage() {
             Aktueller Stand: wer hat gerade einen Kasten offen.
           </p>
         </div>
-        <PlayerQueueTable rows={queueRows} />
+        <PlayerQueueTable rows={queueRows} admin={admin} />
       </section>
     </div>
   );
