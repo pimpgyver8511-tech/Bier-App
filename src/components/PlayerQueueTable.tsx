@@ -74,6 +74,9 @@ export function PlayerQueueTable({ rows, admin }: { rows: QueueRow[]; admin: boo
                         ⏳ noch {p.cooldownRemainingDays} Tage Pause
                       </span>
                     )}
+                    {p.nextScheduledLabel && (
+                      <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
+                    )}
                     {p.pendingCount > 0 && (
                       <button
                         type="button"
@@ -82,9 +85,6 @@ export function PlayerQueueTable({ rows, admin }: { rows: QueueRow[]; admin: boo
                       >
                         🍺 {p.pendingCount}× ausstehend <span aria-hidden="true">ⓘ</span>
                       </button>
-                    )}
-                    {p.nextScheduledLabel && (
-                      <span className="badge badge-blue">📅 {p.nextScheduledLabel}</span>
                     )}
                     {p.pendingCount === 0 && !p.nextScheduledLabel && p.open && (
                       <span className="badge badge-green">✅ Keinen Kasten offen aktuell</span>
