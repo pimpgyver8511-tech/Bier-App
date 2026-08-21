@@ -6,7 +6,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
+import { BeerDealsCard } from "@/components/BeerDealsCard";
 import { deleteAssignmentAction } from "@/lib/actions";
+import { getTopBeerDeals, getBeerDealsConfig } from "@/lib/beerdeals";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -43,6 +45,16 @@ export default async function HomePage() {
   ]);
 
   const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
+
+  let beerDeals: Awaited<ReturnType<typeof getTopBeerDeals>> = [];
+  let beerDealsConfig: Awaited<ReturnType<typeof getBeerDealsConfig>> = null;
+  if (admin) {
+    try {
+      [beerDeals, beerDealsConfig] = await Promise.all([getTopBeerDeals(), getBeerDealsConfig()]);
+    } catch {
+      // Tabelle evtl. noch nicht eingerichtet (siehe Admin > Einstellungen)
+    }
+  }
 
   const queueRows: QueueRow[] = overview.map((p) => ({
     playerId: p.playerId,
@@ -170,6 +182,15 @@ export default async function HomePage() {
         </div>
         <PlayerQueueTable rows={queueRows} admin={admin} />
       </section>
+
+      {admin && (
+        <BeerDealsCard
+          deals={beerDeals}
+          lastSyncAt={beerDealsConfig?.lastSyncAt ?? null}
+          lastSyncOk={beerDealsConfig?.lastSyncOk ?? false}
+          lastSyncMsg={beerDealsConfig?.lastSyncMsg ?? null}
+        />
+      )}
     </div>
   );
 }

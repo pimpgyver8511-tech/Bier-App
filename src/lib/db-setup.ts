@@ -106,6 +106,27 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `ALTER TABLE "Player" ADD COLUMN "alias" TEXT`,
     ],
   },
+  {
+    name: "20260821090000_beer_deals",
+    statements: [
+      `CREATE TABLE "BeerDeal" (
+        "id" TEXT NOT NULL,
+        "brand" TEXT NOT NULL,
+        "store" TEXT,
+        "price" DOUBLE PRECISION,
+        "sourceUrl" TEXT NOT NULL,
+        "fetchedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "BeerDeal_pkey" PRIMARY KEY ("id")
+      )`,
+      `CREATE TABLE "BeerDealsConfig" (
+        "id" INTEGER NOT NULL DEFAULT 1,
+        "lastSyncAt" TIMESTAMP(3),
+        "lastSyncOk" BOOLEAN NOT NULL DEFAULT false,
+        "lastSyncMsg" TEXT,
+        CONSTRAINT "BeerDealsConfig_pkey" PRIMARY KEY ("id")
+      )`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

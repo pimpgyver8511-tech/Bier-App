@@ -112,3 +112,22 @@ model SpielerplusConfig {
   lastSyncOk  Boolean  @default(false)
   lastSyncMsg String?
 }
+
+// Woechentlich per Cron befuellte Bierkasten-Angebote (siehe
+// src/lib/beerdeals.ts). Wird bei jedem Sync komplett geleert und neu
+// befuellt - es gibt bewusst keine Historie, nur "diese Woche".
+model BeerDeal {
+  id        String   @id @default(cuid())
+  brand     String
+  store     String?
+  price     Float?
+  sourceUrl String
+  fetchedAt DateTime @default(now())
+}
+
+model BeerDealsConfig {
+  id          Int       @id @default(1)
+  lastSyncAt  DateTime?
+  lastSyncOk  Boolean   @default(false)
+  lastSyncMsg String?
+}

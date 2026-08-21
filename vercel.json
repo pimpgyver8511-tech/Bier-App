@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-spielplan",
       "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/cron/sync-beer-deals",
+      "schedule": "0 6 * * 1"
     }
   ]
 }

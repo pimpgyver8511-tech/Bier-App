@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { syncMatchScheduleFromIcs, importAttendanceFromCsv } from "@/lib/spielerplus";
+import { syncBeerDeals } from "@/lib/beerdeals";
 import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
 import { withBerlinTime } from "@/lib/timezone";
@@ -378,6 +379,13 @@ export async function syncMatchScheduleAction() {
   const result = await syncMatchScheduleFromIcs();
   revalidatePath("/admin/matches");
   revalidatePath("/admin/settings");
+  revalidatePath("/");
+  return result;
+}
+
+export async function syncBeerDealsAction() {
+  await requireAdmin();
+  const result = await syncBeerDeals();
   revalidatePath("/");
   return result;
 }
