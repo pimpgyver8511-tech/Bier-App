@@ -27,31 +27,32 @@ const STORES = [
   "Trinkgut",
   "Getränkeland",
   "Getränke Hoffmann",
+  "N.P. Discount",
+  "NP Discount",
+  "nah und gut",
+  "nah & gut",
+  "alldrink",
 ];
 
 /**
- * aktionspreis.de listet unter /gruppe/bierkasten-angebote alle aktuell
- * beworbenen Bierkaesten unabhaengig von der Marke (bewusst gewaehlt
- * statt einzelner Marken-Seiten, damit die Anzeige nicht auf eine feste
- * Markenliste begrenzt ist) - anders als die Marken-Seiten (die ein
- * "/leipzig"-Suffix akzeptieren) hat diese Gruppen-Seite KEIN
- * Stadt-Suffix (fuehrte zu HTTP 404, korrigiert). Ob/wie sie nach Ort
- * filtert (IP-basiert, "aus Ihrer Naehe") ist unklar - deshalb wird der
- * Text zusaetzlich nach "Leipzig" gefiltert, falls die Seite mehrere
- * Staedte gleichzeitig auflistet; taucht "Leipzig" gar nicht im Text
- * auf, wird angenommen, dass die Seite schon (anderweitig) lokal
- * gefiltert ist und alle Treffer werden uebernommen. Keine offizielle
- * API - die Seite wird als HTML abgerufen und Marke/Preis/Haendler per
- * Text-Mustererkennung extrahiert (ohne Annahmen ueber konkrete
- * CSS-Klassen, da die genaue Seitenstruktur beim Schreiben dieses Codes
- * nicht einsehbar war).
+ * aktionspreis.de hat keine offizielle API. Die Gruppen-Seite
+ * (/gruppe/bierkasten-angebote, alle Marken gemeinsam) waere zwar ideal,
+ * um nicht auf einzelne Marken beschraenkt zu sein, filtert den Ort aber
+ * ueber ein Cookie/localStorage statt ueber die URL (per Screenshot vom
+ * Nutzer bestaetigt: die URL enthaelt keine PLZ) - von einer Vercel-
+ * Funktion aus (kein Browser, kein gespeichertes Cookie) laesst sich
+ * Leipzig darueber nicht zuverlaessig anfragen. Die Marken-Einzelseiten
+ * akzeptieren dagegen nachweislich ein "/leipzig"-Suffix in der URL,
+ * deshalb werden mehrere bekannte Marken einzeln abgefragt (unten
+ * moeglichst breit gehalten, um die Anzeige nicht auf wenige Marken zu
+ * verengen).
+ *
+ * Haendlernamen stehen auf der Detailseite teils nur als Logo-Bild
+ * (z.B. "N.P. Discount", "nah & gut" im Tiefstpreis-Kasten) statt als
+ * sichtbarer Text - deshalb wird beim Parsen zusaetzlich der alt-/
+ * title-Text von <img>/<a> ausgelesen, bevor Tags entfernt werden.
  */
-const GROUP_URL = "https://www.aktionspreis.de/gruppe/bierkasten-angebote";
-
-// Nur als Rueckfallebene, falls die Gruppen-Seite gar nichts liefert -
-// deckt dann wenigstens diese (per Suche bestaetigten) Marken fuer
-// Leipzig ab, statt komplett leer zu bleiben.
-const FALLBACK_SOURCES: { brand: string; url: string }[] = [
+const BRAND_SOURCES: { brand: string; url: string }[] = [
   { brand: "Hasseröder", url: "https://www.aktionspreis.de/angebote/hasseroeder-kasten-20-x-0-5l/leipzig" },
   { brand: "Warsteiner", url: "https://www.aktionspreis.de/angebote/warsteiner-kasten-20-x-0-5l/leipzig" },
   { brand: "Radeberger", url: "https://www.aktionspreis.de/angebote/radeberger-kasten-20-x-0-5l/leipzig" },
@@ -65,12 +66,21 @@ const FALLBACK_SOURCES: { brand: string; url: string }[] = [
   { brand: "Berliner Pilsner", url: "https://www.aktionspreis.de/angebote/berliner-pilsner-kasten-20-x-0-5l/leipzig" },
   { brand: "Pilsner Urquell", url: "https://www.aktionspreis.de/angebote/pilsner-urquell-kasten-20-x-0-5l/leipzig" },
   { brand: "Lübzer", url: "https://www.aktionspreis.de/angebote/luebzer-kasten-20-x-0-5l/leipzig" },
+  { brand: "Benediktiner", url: "https://www.aktionspreis.de/angebote/benediktiner-kasten-20-x-0-5l/leipzig" },
 ];
 
 function flattenHtml(html: string): string {
-  return html
+  const withoutScripts = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ");
+  // Alt-/Title-Text von Bildern und Links VOR dem Tag-Strip in den
+  // Fliesstext ziehen, damit Logo-only-Haendlernamen nicht verloren
+  // gehen (siehe Kommentar oben).
+  const withAltText = withoutScripts.replace(
+    /<(?:img|a)\b[^>]*?\b(?:alt|title)="([^"]*)"[^>]*>/gi,
+    (_m, text: string) => ` ${text} `
+  );
+  return withAltText
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -78,89 +88,52 @@ function flattenHtml(html: string): string {
     .trim();
 }
 
-function cleanBrandCandidate(raw: string): string | null {
-  // Nimmt die letzten paar Woerter vor dem Haendlernamen als
-  // Marken-/Produktbezeichnung, schneidet Fuellwoerter am Rand ab.
-  const words = raw.trim().split(" ").filter(Boolean);
-  const candidate = words.slice(-6).join(" ").replace(/^[-–,.:;|]+|[-–,.:;|]+$/g, "").trim();
-  if (candidate.length < 2 || candidate.length > 60) return null;
-  if (!/[a-zA-ZäöüÄÖÜß]/.test(candidate)) return null;
-  return candidate;
-}
-
-const LEIPZIG_MARKERS = [
-  "leipzig",
-  "leutzsch",
-  "plagwitz",
-  "grünau",
-  "reudnitz",
-  "schönefeld",
-  "connewitz",
-  "gohlis",
-];
-
-/** Extrahiert {brand, store, price}-Tripel aus der Gruppen-Seite (alle Marken). */
-function extractGroupOffers(html: string): { brand: string; store: string; price: number }[] {
-  const text = flattenHtml(html);
-  const textLower = text.toLowerCase();
-  // Listet die Seite mehrere Staedte (erkennbar an "leipzig" irgendwo im
-  // Text), wird pro Treffer zusaetzlich auf Leipzig-Naehe geprueft.
-  // Kommt "leipzig" gar nicht vor, ist die Seite vermutlich schon
-  // anderweitig lokal gefiltert - dann wird nicht weiter eingeschraenkt.
-  const multiCityPage = textLower.includes("leipzig");
-
-  const results: { brand: string; store: string; price: number }[] = [];
-  const priceRegex = /(\d{1,2}),(\d{2})\s?€/g;
-  let prevEnd = 0;
-  let match: RegExpExecArray | null;
-  while ((match = priceRegex.exec(text))) {
-    const price = Number(match[1]) + Number(match[2]) / 100;
-    const chunk = text.slice(prevEnd, match.index);
-    const chunkStart = prevEnd;
-    prevEnd = match.index + match[0].length;
-
-    // Plausibilitaetsfilter: ein Bierkasten kostet realistisch zwischen
-    // 3 und 40 Euro - filtert Pfandbetraege, Versandkosten etc. heraus.
-    if (price < 3 || price > 40) continue;
-
-    const lower = chunk.toLowerCase();
-    const store = STORES.find((s) => lower.includes(s.toLowerCase()));
-    if (!store) continue;
-
-    if (multiCityPage) {
-      // Weiterer Suchradius um den Preis herum (Ort steht oft direkt
-      // neben Haendler/Preis, nicht zwingen im selben Chunk davor).
-      const wideWindow = textLower.slice(
-        Math.max(0, chunkStart - 200),
-        Math.min(textLower.length, prevEnd + 200)
-      );
-      const nearLeipzig = LEIPZIG_MARKERS.some((m) => wideWindow.includes(m));
-      if (!nearLeipzig) continue;
+/** Findet die Position des naechstgelegenen Haendlernamens zu einem Index (oder null). */
+function findClosestStore(
+  lower: string,
+  centerIdx: number,
+  radius: number
+): { store: string; distance: number } | null {
+  let best: { store: string; distance: number } | null = null;
+  for (const store of STORES) {
+    const needle = store.toLowerCase();
+    const from = Math.max(0, centerIdx - radius);
+    const to = Math.min(lower.length, centerIdx + radius);
+    const segment = lower.slice(from, to);
+    let searchFrom = 0;
+    let idx: number;
+    while ((idx = segment.indexOf(needle, searchFrom)) !== -1) {
+      const absoluteIdx = from + idx;
+      const distance = Math.abs(absoluteIdx - centerIdx);
+      if (!best || distance < best.distance) best = { store, distance };
+      searchFrom = idx + 1;
     }
-
-    const storeIdx = lower.lastIndexOf(store.toLowerCase());
-    const brandRaw = chunk.slice(0, storeIdx);
-    const brand = cleanBrandCandidate(brandRaw);
-    if (!brand) continue;
-
-    results.push({ brand, store, price });
   }
-  return results;
+  return best;
 }
 
-/** Rueckfall: eine bekannte Marken-Seite liefert nur store+price, Marke steht schon fest. */
-function extractSingleBrandOffers(html: string): { store: string; price: number }[] {
+/** Sucht rund um jeden Preistreffer nach dem naechstgelegenen Haendlernamen. */
+function extractBrandOffers(html: string): { store: string; price: number }[] {
   const text = flattenHtml(html);
+  const lower = text.toLowerCase();
   const results: { store: string; price: number }[] = [];
   const priceRegex = /(\d{1,2}),(\d{2})\s?€/g;
   let match: RegExpExecArray | null;
   while ((match = priceRegex.exec(text))) {
     const price = Number(match[1]) + Number(match[2]) / 100;
+    // Plausibilitaetsfilter: ein Bierkasten kostet realistisch zwischen
+    // 3 und 40 Euro - filtert Pfandbetraege etc. heraus.
     if (price < 3 || price > 40) continue;
-    const windowStart = Math.max(0, match.index - 120);
-    const context = text.slice(windowStart, match.index).toLowerCase();
-    const store = STORES.find((s) => context.includes(s.toLowerCase()));
-    if (store) results.push({ store, price });
+
+    // UVP-Vergleichswerte (durchgestrichener Originalpreis) sind kein
+    // echtes Angebot - werden anhand des "uvp"-Textes kurz davor erkannt.
+    const immediatelyBefore = lower.slice(Math.max(0, match.index - 15), match.index);
+    if (immediatelyBefore.includes("uvp")) continue;
+
+    const closest = findClosestStore(lower, match.index, 120);
+    if (!closest) continue;
+
+    results.push({ store: closest.store, price });
   }
   return results;
 }
@@ -176,28 +149,19 @@ async function fetchText(url: string): Promise<string> {
 export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   const collected: { brand: string; store: string; price: number; sourceUrl: string }[] = [];
   const errors: string[] = [];
-  let usedFallback = false;
 
-  try {
-    const html = await fetchText(GROUP_URL);
-    for (const o of extractGroupOffers(html)) {
-      collected.push({ brand: o.brand, store: o.store, price: o.price, sourceUrl: GROUP_URL });
-    }
-  } catch (err) {
-    errors.push(`Gruppen-Seite: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  if (collected.length === 0) {
-    usedFallback = true;
-    for (const { brand, url } of FALLBACK_SOURCES) {
-      try {
-        const html = await fetchText(url);
-        for (const o of extractSingleBrandOffers(html)) {
-          collected.push({ brand, store: o.store, price: o.price, sourceUrl: url });
-        }
-      } catch (err) {
-        errors.push(`${brand}: ${err instanceof Error ? err.message : String(err)}`);
+  for (const { brand, url } of BRAND_SOURCES) {
+    try {
+      const html = await fetchText(url);
+      const offers = extractBrandOffers(html);
+      for (const o of offers) {
+        collected.push({ brand, store: o.store, price: o.price, sourceUrl: url });
       }
+      if (offers.length === 0) {
+        errors.push(`${brand}: keine Treffer beim Parsen`);
+      }
+    } catch (err) {
+      errors.push(`${brand}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -205,7 +169,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
 
   if (collected.length === 0) {
     const message =
-      "Keine Angebote gefunden." + (errors.length ? " Fehler: " + errors.join("; ") : "");
+      "Keine Angebote gefunden." + (errors.length ? " Details: " + errors.join("; ") : "");
     await prisma.beerDealsConfig.upsert({
       where: { id: 1 },
       update: { lastSyncAt: now, lastSyncOk: false, lastSyncMsg: message },
@@ -219,9 +183,9 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     prisma.beerDeal.createMany({ data: collected }),
   ]);
 
-  const message = usedFallback
-    ? `${collected.length} Angebot(e) über Rückfall-Markenliste abgerufen (Gruppen-Seite lieferte nichts).`
-    : `${collected.length} Angebot(e) über alle Marken abgerufen.`;
+  const message =
+    `${collected.length} Angebot(e) von ${BRAND_SOURCES.length} Marken abgerufen.` +
+    (errors.length ? ` (${errors.length} ohne Treffer/Fehler)` : "");
   await prisma.beerDealsConfig.upsert({
     where: { id: 1 },
     update: { lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message },
