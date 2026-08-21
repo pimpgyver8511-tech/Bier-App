@@ -6,153 +6,110 @@ export type BeerDealsSyncResult = {
   count: number;
 };
 
-// Beschraenkt auf Ketten mit nachweislicher Praesenz in Leipzig (per
-// Nutzer-Feedback wurde "NP Discount" ueber Google Maps als dort nicht
-// existent bestaetigt - unsichere/regionale Ketten wurden entfernt).
-const STORES = [
-  "Kaufland",
-  "Rewe",
-  "Edeka",
-  "Globus",
-  "Netto",
-  "Penny",
-  "Aldi Nord",
-  "Aldi Süd",
-  "Aldi",
-  "Lidl",
-  "Marktkauf",
-  "Konsum",
-  "Diska",
+/**
+ * kaufda.de liefert pro Kategorie- bzw. Marken-Seite serverseitig
+ * gerenderte Angebotsdaten direkt im "__NEXT_DATA__"-Script-Tag der Seite
+ * (bestaetigt per echtem Seitenquelltext) - eine zusaetzliche API-Anfrage
+ * ist nicht noetig. Die allgemeine Bier-Seite deckt die meisten Angebote
+ * ab, die Marken-Seiten fangen zusaetzlich Angebote auf, die dort nicht
+ * gelistet sind (z.B. weil kaufda.de sie nur der jeweiligen Marken-Seite
+ * zuordnet).
+ */
+const KAUFDA_SOURCES = [
+  "https://www.kaufda.de/Leipzig/Angebote/Bier",
+  "https://www.kaufda.de/Leipzig/Angebote/Krombacher",
+  "https://www.kaufda.de/Leipzig/Angebote/Bitburger",
+  "https://www.kaufda.de/Leipzig/Angebote/Veltins",
+  "https://www.kaufda.de/Leipzig/Angebote/Becks",
+  "https://www.kaufda.de/Leipzig/Angebote/Hasseroeder",
+  "https://www.kaufda.de/Leipzig/Angebote/Radeberger",
+  "https://www.kaufda.de/Leipzig/Angebote/Warsteiner",
+  "https://www.kaufda.de/Leipzig/Angebote/Oettinger",
+  "https://www.kaufda.de/Leipzig/Angebote/Erdinger",
+  "https://www.kaufda.de/Leipzig/Angebote/Koelsch",
+  "https://www.kaufda.de/Leipzig/Angebote/Budweiser",
+  "https://www.kaufda.de/Leipzig/Angebote/Augustiner",
+  "https://www.kaufda.de/Leipzig/Angebote/Hasseroeder-Pilsener",
+  "https://www.kaufda.de/Leipzig/Angebote/Freiberger",
+  "https://www.kaufda.de/Leipzig/Angebote/Berliner-Pilsener",
 ];
+
+type KaufdaOfferItem = {
+  id?: string;
+  publisherName?: string;
+  title?: string;
+  description?: string;
+  brand?: string;
+  prices?: {
+    mainPrice?: number;
+  };
+};
+
+type KaufdaNextData = {
+  props?: {
+    pageProps?: {
+      pageInformation?: {
+        offers?: {
+          main?: {
+            items?: KaufdaOfferItem[];
+          };
+        };
+      };
+    };
+  };
+};
 
 /**
- * aktionspreis.de hat keine offizielle API. Die Gruppen-Seite
- * (/gruppe/bierkasten-angebote, alle Marken gemeinsam) waere zwar ideal,
- * um nicht auf einzelne Marken beschraenkt zu sein, filtert den Ort aber
- * ueber ein Cookie/localStorage statt ueber die URL (per Screenshot vom
- * Nutzer bestaetigt: die URL enthaelt keine PLZ) - von einer Vercel-
- * Funktion aus (kein Browser, kein gespeichertes Cookie) laesst sich
- * Leipzig darueber nicht zuverlaessig anfragen. Die Marken-Einzelseiten
- * akzeptieren dagegen nachweislich ein "/leipzig"-Suffix in der URL,
- * deshalb werden mehrere bekannte Marken einzeln abgefragt (unten
- * moeglichst breit gehalten, um die Anzeige nicht auf wenige Marken zu
- * verengen).
- *
- * Haendlernamen stehen auf der Detailseite teils nur als Logo-Bild
- * (z.B. "N.P. Discount", "nah & gut" im Tiefstpreis-Kasten) statt als
- * sichtbarer Text - deshalb wird beim Parsen zusaetzlich der alt-/
- * title-Text von <img>/<a> ausgelesen, bevor Tags entfernt werden.
+ * Ein kompletter Bierkasten wird in der Artikelbeschreibung immer als
+ * "<Anzahl> x 0,<Rest>" angegeben (z.B. "20 x 0,5 Liter",
+ * "24 x 0,33-l-Fl.", "28 x 0,25/20 x 0,4"). Sixpacks und Einzelflaschen
+ * haben entweder keine solche Mengenangabe (z.B. "0,5-l-Dose") oder eine
+ * deutlich kleinere Anzahl (z.B. "6 x 0,33-l-Fl.-Sixpack") - anhand aller
+ * real beobachteten Angebote lag die Kasten-Anzahl immer bei 18 oder
+ * mehr, deshalb dient 18 als Schwellenwert.
  */
-const BRAND_SOURCES: { brand: string; url: string }[] = [
-  { brand: "Hasseröder", url: "https://www.aktionspreis.de/angebote/hasseroeder-kasten-20-x-0-5l/leipzig" },
-  { brand: "Warsteiner", url: "https://www.aktionspreis.de/angebote/warsteiner-kasten-20-x-0-5l/leipzig" },
-  { brand: "Radeberger", url: "https://www.aktionspreis.de/angebote/radeberger-kasten-20-x-0-5l/leipzig" },
-  { brand: "Krombacher", url: "https://www.aktionspreis.de/angebote/krombacher-kasten-20-x-0-5l/leipzig" },
-  { brand: "Ur-Krostitzer", url: "https://www.aktionspreis.de/angebote/ur-krostitzer-kasten-20-x-0-5l/leipzig" },
-  { brand: "Sternburg", url: "https://www.aktionspreis.de/angebote/sternburg-kasten-20-x-0-5l/leipzig" },
-  { brand: "Spaten", url: "https://www.aktionspreis.de/angebote/spaten-20-x-0-5l/leipzig" },
-  { brand: "Oettinger", url: "https://www.aktionspreis.de/angebote/oettinger-kasten-20-x-0-5l/leipzig" },
-  { brand: "Bitburger", url: "https://www.aktionspreis.de/angebote/bitburger-kasten-20-x-0-5l/leipzig" },
-  { brand: "Heineken", url: "https://www.aktionspreis.de/angebote/heineken-kasten-20-x-0-4l/leipzig" },
-  { brand: "Berliner Pilsner", url: "https://www.aktionspreis.de/angebote/berliner-pilsner-kasten-20-x-0-5l/leipzig" },
-  { brand: "Pilsner Urquell", url: "https://www.aktionspreis.de/angebote/pilsner-urquell-kasten-20-x-0-5l/leipzig" },
-  { brand: "Lübzer", url: "https://www.aktionspreis.de/angebote/luebzer-kasten-20-x-0-5l/leipzig" },
-  { brand: "Benediktiner", url: "https://www.aktionspreis.de/angebote/benediktiner-kasten-20-x-0-5l/leipzig" },
-];
-
-function flattenHtml(html: string): string {
-  const withoutScripts = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ");
-  // Haendlernamen stehen oft als title="..." auf einem <div> mit
-  // Logo-Hintergrundbild (per echtem Seitenquelltext bestaetigt, z.B.
-  // <div title="Kaufland Angebote" style="background:url(...)">),
-  // nicht als alt-Text auf einem <img>. Beides wird VOR dem Tag-Strip
-  // in den Fliesstext gezogen, damit diese Namen nicht verloren gehen.
-  const withAltText = withoutScripts
-    .replace(/<img\b[^>]*?\balt="([^"]*)"[^>]*>/gi, (_m, text: string) => ` ${text} `)
-    .replace(/<[a-zA-Z][^>]*?\btitle="([^"]*)"[^>]*>/gi, (_m, text: string) => ` ${text} `);
-  return withAltText
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&euro;/gi, "€")
-    .replace(/\s+/g, " ")
-    .trim();
+function isFullCase(description: string | undefined): boolean {
+  if (!description) return false;
+  const match = description.match(/(\d{1,3})\s*x\s*0[.,]\d/i);
+  if (!match) return false;
+  return Number(match[1]) >= 18;
 }
 
-/** Findet die Position des naechstgelegenen Haendlernamens zu einem Index (oder null). */
-function findClosestStore(
-  lower: string,
-  centerIdx: number,
-  radius: number
-): { store: string; distance: number } | null {
-  let best: { store: string; distance: number } | null = null;
-  for (const store of STORES) {
-    const needle = store.toLowerCase();
-    const from = Math.max(0, centerIdx - radius);
-    const to = Math.min(lower.length, centerIdx + radius);
-    const segment = lower.slice(from, to);
-    let searchFrom = 0;
-    let idx: number;
-    while ((idx = segment.indexOf(needle, searchFrom)) !== -1) {
-      const absoluteIdx = from + idx;
-      const distance = Math.abs(absoluteIdx - centerIdx);
-      if (!best || distance < best.distance) best = { store, distance };
-      searchFrom = idx + 1;
-    }
+function extractNextData(html: string): KaufdaNextData | null {
+  const match = html.match(
+    /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
+  );
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]) as KaufdaNextData;
+  } catch {
+    return null;
   }
-  return best;
 }
 
-/** Sucht rund um jeden Preistreffer nach dem naechstgelegenen Haendlernamen. */
-function extractBrandOffers(html: string): { store: string; price: number }[] {
-  const text = flattenHtml(html);
-  const lower = text.toLowerCase();
-  const results: { store: string; price: number }[] = [];
-  const priceRegex = /(\d{1,2}),(\d{2})\s?€/g;
-  let match: RegExpExecArray | null;
-  while ((match = priceRegex.exec(text))) {
-    const price = Number(match[1]) + Number(match[2]) / 100;
-    // Plausibilitaetsfilter: ein kompletter Bierkasten kostet realistisch
-    // mindestens ~7-8€ (bestaetigte echte Angebote lagen alle bei 7,99€+,
-    // selbst bei starkem Rabatt) - eine Untergrenze von 6€ filtert sowohl
-    // Pfandbetraege als auch fehlerhaft zugeordnete Preise fuer andere
-    // Gebindegroessen (z.B. Sixpack statt Kasten) zuverlaessig heraus.
+type ExtractedOffer = { id: string; brand: string; store: string; price: number };
+
+function extractOffers(html: string): ExtractedOffer[] {
+  const data = extractNextData(html);
+  const items = data?.props?.pageProps?.pageInformation?.offers?.main?.items ?? [];
+  const results: ExtractedOffer[] = [];
+  for (const item of items) {
+    if (!isFullCase(item.description)) continue;
+    const price = item.prices?.mainPrice;
+    const store = item.publisherName;
+    const brand = item.brand || item.title;
+    const id = item.id;
+    if (!id || !price || !store || !brand) continue;
+    // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
     if (price < 6 || price > 40) continue;
-
-    // "-4,99 €" ist ein Rabattbetrag, kein Endpreis - direkt davorstehendes
-    // Minuszeichen ausschliessen.
-    if (text[match.index - 1] === "-") continue;
-
-    // UVP-Vergleichswerte (durchgestrichener Originalpreis) sind kein
-    // echtes Angebot - werden anhand des "uvp"-Textes kurz davor erkannt.
-    const immediatelyBefore = lower.slice(Math.max(0, match.index - 15), match.index);
-    if (immediatelyBefore.includes("uvp")) continue;
-
-    // Haendler ohne aktuelles Angebot zeigen stattdessen den Preis der
-    // letzten (vergangenen) Aktion an ("letzte Aktion X € vor N Wochen",
-    // "kein Angebot verfügbar") - kein echtes aktuelles Angebot, wird
-    // anhand des umgebenden Textes ausgefiltert.
-    const nearby = lower.slice(
-      Math.max(0, match.index - 40),
-      Math.min(lower.length, match.index + 200)
-    );
-    if (nearby.includes("letzte aktion") || nearby.includes("kein angebot")) continue;
-
-    const closest = findClosestStore(lower, match.index, 180);
-    if (!closest) continue;
-
-    results.push({ store: closest.store, price });
+    results.push({ id, brand, store, price });
   }
   return results;
 }
 
-// Ein selbst erklaerender Bot-User-Agent wird von Preisvergleichsseiten
-// haeufig erkannt und blockiert/mit leerem Inhalt beantwortet (alle 14
-// Marken gleichzeitig null Treffer deutete genau darauf hin) - deshalb
-// wird hier ein normaler Browser-User-Agent samt typischer Browser-
-// Header verwendet.
+// Ein selbst erklaerender Bot-User-Agent wird von Prospekt-/
+// Preisvergleichsseiten haeufig erkannt und blockiert - deshalb wird hier
+// ein normaler Browser-User-Agent samt typischer Browser-Header verwendet.
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
@@ -167,33 +124,34 @@ async function fetchText(url: string): Promise<string> {
 }
 
 export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
-  const collected: { brand: string; store: string; price: number; sourceUrl: string }[] = [];
+  // Mehrere Quellseiten (allgemeine Bier-Seite + Marken-Seiten) koennen
+  // dasselbe Angebot liefern - Dedupe ueber die von kaufda.de vergebene
+  // Angebots-ID stellt sicher, dass jedes echte Angebot nur einmal
+  // gespeichert wird.
+  const collected = new Map<string, { brand: string; store: string; price: number; sourceUrl: string }>();
   const errors: string[] = [];
 
-  for (const { brand, url } of BRAND_SOURCES) {
+  for (const url of KAUFDA_SOURCES) {
     try {
       const html = await fetchText(url);
-      const offers = extractBrandOffers(html);
+      const offers = extractOffers(html);
       for (const o of offers) {
-        collected.push({ brand, store: o.store, price: o.price, sourceUrl: url });
+        if (!collected.has(o.id)) {
+          collected.set(o.id, { brand: o.brand, store: o.store, price: o.price, sourceUrl: url });
+        }
       }
       if (offers.length === 0) {
-        // Kurze Antwort deutet auf eine Block-/Weiterleitungsseite statt
-        // echtem Inhalt hin (z.B. Bot-Schutz) - hilft bei der Diagnose,
-        // ob es an der Erkennung oder am Zugriff selbst liegt.
-        const priceHits = (html.match(/\d{1,2},\d{2}\s?€/g) ?? []).length;
-        errors.push(
-          `${brand}: keine Treffer (Antwort ${html.length} Zeichen, ${priceHits} Preis-Muster gefunden)`
-        );
+        errors.push(`${url}: keine Treffer (Antwort ${html.length} Zeichen)`);
       }
     } catch (err) {
-      errors.push(`${brand}: ${err instanceof Error ? err.message : String(err)}`);
+      errors.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   const now = new Date();
+  const deals = Array.from(collected.values());
 
-  if (collected.length === 0) {
+  if (deals.length === 0) {
     const message =
       "Keine Angebote gefunden." + (errors.length ? " Details: " + errors.join("; ") : "");
     await prisma.beerDealsConfig.upsert({
@@ -206,11 +164,11 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
 
   await prisma.$transaction([
     prisma.beerDeal.deleteMany({}),
-    prisma.beerDeal.createMany({ data: collected }),
+    prisma.beerDeal.createMany({ data: deals }),
   ]);
 
   const message =
-    `${collected.length} Angebot(e) von ${BRAND_SOURCES.length} Marken abgerufen.` +
+    `${deals.length} Angebot(e) von ${KAUFDA_SOURCES.length} Seiten abgerufen.` +
     (errors.length ? ` (${errors.length} ohne Treffer/Fehler)` : "");
   await prisma.beerDealsConfig.upsert({
     where: { id: 1 },
@@ -218,7 +176,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     create: { id: 1, lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message },
   });
 
-  return { ok: true, message, count: collected.length };
+  return { ok: true, message, count: deals.length };
 }
 
 /**
