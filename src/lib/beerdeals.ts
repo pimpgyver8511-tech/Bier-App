@@ -73,17 +73,19 @@ function flattenHtml(html: string): string {
   const withoutScripts = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ");
-  // Alt-/Title-Text von Bildern und Links VOR dem Tag-Strip in den
-  // Fliesstext ziehen, damit Logo-only-Haendlernamen nicht verloren
-  // gehen (siehe Kommentar oben).
-  const withAltText = withoutScripts.replace(
-    /<(?:img|a)\b[^>]*?\b(?:alt|title)="([^"]*)"[^>]*>/gi,
-    (_m, text: string) => ` ${text} `
-  );
+  // Haendlernamen stehen oft als title="..." auf einem <div> mit
+  // Logo-Hintergrundbild (per echtem Seitenquelltext bestaetigt, z.B.
+  // <div title="Kaufland Angebote" style="background:url(...)">),
+  // nicht als alt-Text auf einem <img>. Beides wird VOR dem Tag-Strip
+  // in den Fliesstext gezogen, damit diese Namen nicht verloren gehen.
+  const withAltText = withoutScripts
+    .replace(/<img\b[^>]*?\balt="([^"]*)"[^>]*>/gi, (_m, text: string) => ` ${text} `)
+    .replace(/<[a-zA-Z][^>]*?\btitle="([^"]*)"[^>]*>/gi, (_m, text: string) => ` ${text} `);
   return withAltText
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+    .replace(/&euro;/gi, "€")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -130,7 +132,17 @@ function extractBrandOffers(html: string): { store: string; price: number }[] {
     const immediatelyBefore = lower.slice(Math.max(0, match.index - 15), match.index);
     if (immediatelyBefore.includes("uvp")) continue;
 
-    const closest = findClosestStore(lower, match.index, 120);
+    // Haendler ohne aktuelles Angebot zeigen stattdessen den Preis der
+    // letzten (vergangenen) Aktion an ("letzte Aktion X € vor N Wochen",
+    // "kein Angebot verfügbar") - kein echtes aktuelles Angebot, wird
+    // anhand des umgebenden Textes ausgefiltert.
+    const nearby = lower.slice(
+      Math.max(0, match.index - 40),
+      Math.min(lower.length, match.index + 200)
+    );
+    if (nearby.includes("letzte aktion") || nearby.includes("kein angebot")) continue;
+
+    const closest = findClosestStore(lower, match.index, 180);
     if (!closest) continue;
 
     results.push({ store: closest.store, price });
