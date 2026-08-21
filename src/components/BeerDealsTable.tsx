@@ -120,16 +120,6 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
                   {d.price.toFixed(2).replace(".", ",")} €{d.id === cheapestId && " 🏆"}
                 </td>
                 <td className="px-3 py-3">
-                  <a
-                    href={mapsUrl(d.store)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="badge badge-green border-0 font-sans hover:brightness-95 transition"
-                  >
-                    🧭 Route
-                  </a>
-                </td>
-                <td className="px-3 py-3">
                   {d.offerUrl && (
                     <a
                       href={d.offerUrl}
@@ -140,6 +130,16 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
                       📄 Prospekt
                     </a>
                   )}
+                </td>
+                <td className="px-3 py-3">
+                  <a
+                    href={mapsUrl(d.store)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="badge badge-green border-0 font-sans hover:brightness-95 transition"
+                  >
+                    🧭 Route
+                  </a>
                 </td>
               </tr>
             ))}
