@@ -1,7 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Outfit } from "next/font/google";
 import { isAdmin } from "@/lib/auth";
-import { BeerMugIcon } from "@/components/BeerMugIcon";
 import { logoutAction } from "@/lib/actions";
 
 const outfit = Outfit({ subsets: ["latin"], weight: ["600", "700"] });
@@ -16,7 +16,13 @@ export async function NavBar() {
           href="/"
           className={`${outfit.className} flex items-center gap-2 font-bold text-lg tracking-tight`}
         >
-          <BeerMugIcon className="w-8 h-8" />
+          <Image
+            src="/tus-leutzsch-crest.png"
+            alt=""
+            width={36}
+            height={36}
+            className="rounded-lg shrink-0"
+          />
           Bier App
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2 text-sm">
