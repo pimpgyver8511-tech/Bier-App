@@ -17,25 +17,26 @@ export function BeerDealsCard({
   lastSyncAt,
   lastSyncOk,
   lastSyncMsg,
+  admin,
 }: {
   deals: BeerDeal[];
   lastSyncAt: Date | null;
   lastSyncOk: boolean;
   lastSyncMsg: string | null;
+  admin: boolean;
 }) {
   return (
     <section className="card overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
-            🍺 Bierkasten-Angebote diese Woche{" "}
-            <span className="badge badge-gray text-[10px]">nur für Admin sichtbar</span>
+            🍺 Bierkasten-Angebote diese Woche
           </h2>
           <p className="text-xs text-muted mt-0.5">
             Die günstigsten Kästen (20x0,5l bzw. 24x0,33l) aktuell in Leipzig
           </p>
         </div>
-        <BeerDealsSyncButton />
+        {admin && <BeerDealsSyncButton />}
       </div>
 
       <BeerDealsTable deals={deals} />
