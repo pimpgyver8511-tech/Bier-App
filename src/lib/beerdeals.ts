@@ -179,32 +179,21 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   return { ok: true, message, count: deals.length };
 }
 
-export type BeerDealsStoreGroup = {
-  store: string;
-  deals: { id: string; brand: string; price: number }[];
-};
+export type BeerDeal = { id: string; brand: string; store: string; price: number };
 
 /**
- * Gruppiert alle Angebote nach Haendler statt nach Marke: pro Haendler
- * eine Liste seiner Marken samt Preis, aufsteigend sortiert. Die
- * Haendler-Gruppen selbst sind nach ihrem jeweils guenstigsten Angebot
- * sortiert, damit der beste Deal weiterhin oben steht.
+ * Liefert alle Angebote flach (ein Eintrag pro Marke+Haendler-Kombination),
+ * aufsteigend nach Preis sortiert. Filterung/Umsortierung nach Haendler,
+ * Marke oder Preisrichtung passiert clientseitig in der Tabelle.
  */
-export async function getBeerDealsByStore(): Promise<BeerDealsStoreGroup[]> {
+export async function getAllBeerDeals(): Promise<BeerDeal[]> {
   const all = await prisma.beerDeal.findMany({ orderBy: { price: "asc" } });
-  const grouped = new Map<string, BeerDealsStoreGroup>();
+  const deals: BeerDeal[] = [];
   for (const deal of all) {
     if (!deal.store || deal.price === null) continue;
-    let group = grouped.get(deal.store);
-    if (!group) {
-      group = { store: deal.store, deals: [] };
-      grouped.set(deal.store, group);
-    }
-    group.deals.push({ id: deal.id, brand: deal.brand, price: deal.price });
+    deals.push({ id: deal.id, brand: deal.brand, store: deal.store, price: deal.price });
   }
-  // "all" ist bereits nach Preis aufsteigend sortiert, deshalb ist
-  // deals[0] pro Gruppe automatisch das guenstigste Angebot des Haendlers.
-  return Array.from(grouped.values()).sort((a, b) => a.deals[0].price - b.deals[0].price);
+  return deals;
 }
 
 export async function getBeerDealsConfig() {

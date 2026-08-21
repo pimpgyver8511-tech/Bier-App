@@ -8,7 +8,7 @@ import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
 import { BeerDealsCard } from "@/components/BeerDealsCard";
 import { deleteAssignmentAction } from "@/lib/actions";
-import { getBeerDealsByStore, getBeerDealsConfig } from "@/lib/beerdeals";
+import { getAllBeerDeals, getBeerDealsConfig } from "@/lib/beerdeals";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -46,14 +46,11 @@ export default async function HomePage() {
 
   const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
 
-  let beerDealStores: Awaited<ReturnType<typeof getBeerDealsByStore>> = [];
+  let beerDeals: Awaited<ReturnType<typeof getAllBeerDeals>> = [];
   let beerDealsConfig: Awaited<ReturnType<typeof getBeerDealsConfig>> = null;
   if (admin) {
     try {
-      [beerDealStores, beerDealsConfig] = await Promise.all([
-        getBeerDealsByStore(),
-        getBeerDealsConfig(),
-      ]);
+      [beerDeals, beerDealsConfig] = await Promise.all([getAllBeerDeals(), getBeerDealsConfig()]);
     } catch {
       // Tabelle evtl. noch nicht eingerichtet (siehe Admin > Einstellungen)
     }
@@ -188,7 +185,7 @@ export default async function HomePage() {
 
       {admin && (
         <BeerDealsCard
-          storeGroups={beerDealStores}
+          deals={beerDeals}
           lastSyncAt={beerDealsConfig?.lastSyncAt ?? null}
           lastSyncOk={beerDealsConfig?.lastSyncOk ?? false}
           lastSyncMsg={beerDealsConfig?.lastSyncMsg ?? null}
