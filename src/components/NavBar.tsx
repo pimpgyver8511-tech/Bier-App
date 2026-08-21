@@ -31,6 +31,9 @@ export async function NavBar() {
           </Link>
           {admin ? (
             <>
+              <Link href="/angebote" className="px-3 py-1.5 rounded-lg hover:bg-white/10 transition">
+                Bierangebote der Woche
+              </Link>
               <Link
                 href="/admin"
                 className="px-3 py-1.5 rounded-lg bg-gold text-[#3a2404] font-semibold hover:brightness-105 transition"

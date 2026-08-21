@@ -6,10 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
-import { BeerDealsCard } from "@/components/BeerDealsCard";
-import { HomeTabs } from "@/components/HomeTabs";
 import { deleteAssignmentAction } from "@/lib/actions";
-import { getAllBeerDeals, getBeerDealsConfig } from "@/lib/beerdeals";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -47,16 +44,6 @@ export default async function HomePage() {
 
   const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
 
-  let beerDeals: Awaited<ReturnType<typeof getAllBeerDeals>> = [];
-  let beerDealsConfig: Awaited<ReturnType<typeof getBeerDealsConfig>> = null;
-  if (admin) {
-    try {
-      [beerDeals, beerDealsConfig] = await Promise.all([getAllBeerDeals(), getBeerDealsConfig()]);
-    } catch {
-      // Tabelle evtl. noch nicht eingerichtet (siehe Admin > Einstellungen)
-    }
-  }
-
   const queueRows: QueueRow[] = overview.map((p) => ({
     playerId: p.playerId,
     name: p.name,
@@ -74,7 +61,7 @@ export default async function HomePage() {
     cooldownRemainingDays: p.cooldownRemainingDays,
   }));
 
-  const overviewContent = (
+  return (
     <div className="space-y-8">
       <section className="card overflow-hidden relative">
         <div className="relative aspect-[2.1/1]">
@@ -184,29 +171,5 @@ export default async function HomePage() {
         <PlayerQueueTable rows={queueRows} admin={admin} />
       </section>
     </div>
-  );
-
-  if (!admin) {
-    return overviewContent;
-  }
-
-  return (
-    <HomeTabs
-      tabs={[
-        { id: "overview", label: "Übersicht", content: overviewContent },
-        {
-          id: "deals",
-          label: "Bierangebote der Woche",
-          content: (
-            <BeerDealsCard
-              deals={beerDeals}
-              lastSyncAt={beerDealsConfig?.lastSyncAt ?? null}
-              lastSyncOk={beerDealsConfig?.lastSyncOk ?? false}
-              lastSyncMsg={beerDealsConfig?.lastSyncMsg ?? null}
-            />
-          ),
-        },
-      ]}
-    />
   );
 }
