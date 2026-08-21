@@ -138,9 +138,19 @@ function extractBrandOffers(html: string): { store: string; price: number }[] {
   return results;
 }
 
+// Ein selbst erklaerender Bot-User-Agent wird von Preisvergleichsseiten
+// haeufig erkannt und blockiert/mit leerem Inhalt beantwortet (alle 14
+// Marken gleichzeitig null Treffer deutete genau darauf hin) - deshalb
+// wird hier ein normaler Browser-User-Agent samt typischer Browser-
+// Header verwendet.
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; BierAppBot/1.0)" },
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+    },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
@@ -158,7 +168,13 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
         collected.push({ brand, store: o.store, price: o.price, sourceUrl: url });
       }
       if (offers.length === 0) {
-        errors.push(`${brand}: keine Treffer beim Parsen`);
+        // Kurze Antwort deutet auf eine Block-/Weiterleitungsseite statt
+        // echtem Inhalt hin (z.B. Bot-Schutz) - hilft bei der Diagnose,
+        // ob es an der Erkennung oder am Zugriff selbst liegt.
+        const priceHits = (html.match(/\d{1,2},\d{2}\s?€/g) ?? []).length;
+        errors.push(
+          `${brand}: keine Treffer (Antwort ${html.length} Zeichen, ${priceHits} Preis-Muster gefunden)`
+        );
       }
     } catch (err) {
       errors.push(`${brand}: ${err instanceof Error ? err.message : String(err)}`);
