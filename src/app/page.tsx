@@ -7,6 +7,7 @@ import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
 import { BeerDealsCard } from "@/components/BeerDealsCard";
+import { HomeTabs } from "@/components/HomeTabs";
 import { deleteAssignmentAction } from "@/lib/actions";
 import { getAllBeerDeals, getBeerDealsConfig } from "@/lib/beerdeals";
 
@@ -73,7 +74,7 @@ export default async function HomePage() {
     cooldownRemainingDays: p.cooldownRemainingDays,
   }));
 
-  return (
+  const overviewContent = (
     <div className="space-y-8">
       <section className="card overflow-hidden relative">
         <div className="relative aspect-[2.1/1]">
@@ -182,15 +183,30 @@ export default async function HomePage() {
         </div>
         <PlayerQueueTable rows={queueRows} admin={admin} />
       </section>
-
-      {admin && (
-        <BeerDealsCard
-          deals={beerDeals}
-          lastSyncAt={beerDealsConfig?.lastSyncAt ?? null}
-          lastSyncOk={beerDealsConfig?.lastSyncOk ?? false}
-          lastSyncMsg={beerDealsConfig?.lastSyncMsg ?? null}
-        />
-      )}
     </div>
+  );
+
+  if (!admin) {
+    return overviewContent;
+  }
+
+  return (
+    <HomeTabs
+      tabs={[
+        { id: "overview", label: "Übersicht", content: overviewContent },
+        {
+          id: "deals",
+          label: "Bierangebote der Woche",
+          content: (
+            <BeerDealsCard
+              deals={beerDeals}
+              lastSyncAt={beerDealsConfig?.lastSyncAt ?? null}
+              lastSyncOk={beerDealsConfig?.lastSyncOk ?? false}
+              lastSyncMsg={beerDealsConfig?.lastSyncMsg ?? null}
+            />
+          ),
+        },
+      ]}
+    />
   );
 }
