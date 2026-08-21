@@ -30,21 +30,27 @@ const STORES = [
 ];
 
 /**
- * aktionspreis.de listet unter /gruppe/bierkasten-angebote/<stadt> alle
- * aktuell beworbenen Bierkaesten unabhaengig von der Marke (bewusst
- * gewaehlt statt einzelner Marken-Seiten, damit die Anzeige nicht auf
- * eine feste Markenliste begrenzt ist). Keine offizielle API - die Seite
- * wird als HTML abgerufen und Marke/Preis/Haendler per Text-
- * Mustererkennung extrahiert (ohne Annahmen ueber konkrete CSS-Klassen,
- * da die genaue Seitenstruktur beim Schreiben dieses Codes nicht
- * einsehbar war).
+ * aktionspreis.de listet unter /gruppe/bierkasten-angebote alle aktuell
+ * beworbenen Bierkaesten unabhaengig von der Marke (bewusst gewaehlt
+ * statt einzelner Marken-Seiten, damit die Anzeige nicht auf eine feste
+ * Markenliste begrenzt ist) - anders als die Marken-Seiten (die ein
+ * "/leipzig"-Suffix akzeptieren) hat diese Gruppen-Seite KEIN
+ * Stadt-Suffix (fuehrte zu HTTP 404, korrigiert). Ob/wie sie nach Ort
+ * filtert (IP-basiert, "aus Ihrer Naehe") ist unklar - deshalb wird der
+ * Text zusaetzlich nach "Leipzig" gefiltert, falls die Seite mehrere
+ * Staedte gleichzeitig auflistet; taucht "Leipzig" gar nicht im Text
+ * auf, wird angenommen, dass die Seite schon (anderweitig) lokal
+ * gefiltert ist und alle Treffer werden uebernommen. Keine offizielle
+ * API - die Seite wird als HTML abgerufen und Marke/Preis/Haendler per
+ * Text-Mustererkennung extrahiert (ohne Annahmen ueber konkrete
+ * CSS-Klassen, da die genaue Seitenstruktur beim Schreiben dieses Codes
+ * nicht einsehbar war).
  */
-const GROUP_URL = "https://www.aktionspreis.de/gruppe/bierkasten-angebote/leipzig";
+const GROUP_URL = "https://www.aktionspreis.de/gruppe/bierkasten-angebote";
 
-// Nur als Rueckfallebene, falls die Gruppen-Seite gar nichts liefert
-// (z.B. weil sich der URL-Aufbau doch anders verhaelt als angenommen) -
-// deckt dann wenigstens die gaengigsten Marken ab, statt komplett leer
-// zu bleiben.
+// Nur als Rueckfallebene, falls die Gruppen-Seite gar nichts liefert -
+// deckt dann wenigstens diese (per Suche bestaetigten) Marken fuer
+// Leipzig ab, statt komplett leer zu bleiben.
 const FALLBACK_SOURCES: { brand: string; url: string }[] = [
   { brand: "Hasseröder", url: "https://www.aktionspreis.de/angebote/hasseroeder-kasten-20-x-0-5l/leipzig" },
   { brand: "Warsteiner", url: "https://www.aktionspreis.de/angebote/warsteiner-kasten-20-x-0-5l/leipzig" },
@@ -54,6 +60,11 @@ const FALLBACK_SOURCES: { brand: string; url: string }[] = [
   { brand: "Sternburg", url: "https://www.aktionspreis.de/angebote/sternburg-kasten-20-x-0-5l/leipzig" },
   { brand: "Spaten", url: "https://www.aktionspreis.de/angebote/spaten-20-x-0-5l/leipzig" },
   { brand: "Oettinger", url: "https://www.aktionspreis.de/angebote/oettinger-kasten-20-x-0-5l/leipzig" },
+  { brand: "Bitburger", url: "https://www.aktionspreis.de/angebote/bitburger-kasten-20-x-0-5l/leipzig" },
+  { brand: "Heineken", url: "https://www.aktionspreis.de/angebote/heineken-kasten-20-x-0-4l/leipzig" },
+  { brand: "Berliner Pilsner", url: "https://www.aktionspreis.de/angebote/berliner-pilsner-kasten-20-x-0-5l/leipzig" },
+  { brand: "Pilsner Urquell", url: "https://www.aktionspreis.de/angebote/pilsner-urquell-kasten-20-x-0-5l/leipzig" },
+  { brand: "Lübzer", url: "https://www.aktionspreis.de/angebote/luebzer-kasten-20-x-0-5l/leipzig" },
 ];
 
 function flattenHtml(html: string): string {
@@ -77,9 +88,27 @@ function cleanBrandCandidate(raw: string): string | null {
   return candidate;
 }
 
+const LEIPZIG_MARKERS = [
+  "leipzig",
+  "leutzsch",
+  "plagwitz",
+  "grünau",
+  "reudnitz",
+  "schönefeld",
+  "connewitz",
+  "gohlis",
+];
+
 /** Extrahiert {brand, store, price}-Tripel aus der Gruppen-Seite (alle Marken). */
 function extractGroupOffers(html: string): { brand: string; store: string; price: number }[] {
   const text = flattenHtml(html);
+  const textLower = text.toLowerCase();
+  // Listet die Seite mehrere Staedte (erkennbar an "leipzig" irgendwo im
+  // Text), wird pro Treffer zusaetzlich auf Leipzig-Naehe geprueft.
+  // Kommt "leipzig" gar nicht vor, ist die Seite vermutlich schon
+  // anderweitig lokal gefiltert - dann wird nicht weiter eingeschraenkt.
+  const multiCityPage = textLower.includes("leipzig");
+
   const results: { brand: string; store: string; price: number }[] = [];
   const priceRegex = /(\d{1,2}),(\d{2})\s?€/g;
   let prevEnd = 0;
@@ -87,6 +116,7 @@ function extractGroupOffers(html: string): { brand: string; store: string; price
   while ((match = priceRegex.exec(text))) {
     const price = Number(match[1]) + Number(match[2]) / 100;
     const chunk = text.slice(prevEnd, match.index);
+    const chunkStart = prevEnd;
     prevEnd = match.index + match[0].length;
 
     // Plausibilitaetsfilter: ein Bierkasten kostet realistisch zwischen
@@ -96,6 +126,17 @@ function extractGroupOffers(html: string): { brand: string; store: string; price
     const lower = chunk.toLowerCase();
     const store = STORES.find((s) => lower.includes(s.toLowerCase()));
     if (!store) continue;
+
+    if (multiCityPage) {
+      // Weiterer Suchradius um den Preis herum (Ort steht oft direkt
+      // neben Haendler/Preis, nicht zwingen im selben Chunk davor).
+      const wideWindow = textLower.slice(
+        Math.max(0, chunkStart - 200),
+        Math.min(textLower.length, prevEnd + 200)
+      );
+      const nearLeipzig = LEIPZIG_MARKERS.some((m) => wideWindow.includes(m));
+      if (!nearLeipzig) continue;
+    }
 
     const storeIdx = lower.lastIndexOf(store.toLowerCase());
     const brandRaw = chunk.slice(0, storeIdx);
