@@ -6,6 +6,9 @@ export type BeerDealsSyncResult = {
   count: number;
 };
 
+// Beschraenkt auf Ketten mit nachweislicher Praesenz in Leipzig (per
+// Nutzer-Feedback wurde "NP Discount" ueber Google Maps als dort nicht
+// existent bestaetigt - unsichere/regionale Ketten wurden entfernt).
 const STORES = [
   "Kaufland",
   "Rewe",
@@ -17,21 +20,9 @@ const STORES = [
   "Aldi Süd",
   "Aldi",
   "Lidl",
-  "real",
   "Marktkauf",
-  "Combi",
-  "famila",
-  "tegut",
   "Konsum",
   "Diska",
-  "Trinkgut",
-  "Getränkeland",
-  "Getränke Hoffmann",
-  "N.P. Discount",
-  "NP Discount",
-  "nah und gut",
-  "nah & gut",
-  "alldrink",
 ];
 
 /**
@@ -123,9 +114,12 @@ function extractBrandOffers(html: string): { store: string; price: number }[] {
   let match: RegExpExecArray | null;
   while ((match = priceRegex.exec(text))) {
     const price = Number(match[1]) + Number(match[2]) / 100;
-    // Plausibilitaetsfilter: ein Bierkasten kostet realistisch zwischen
-    // 3 und 40 Euro - filtert Pfandbetraege etc. heraus.
-    if (price < 3 || price > 40) continue;
+    // Plausibilitaetsfilter: ein kompletter Bierkasten kostet realistisch
+    // mindestens ~7-8€ (bestaetigte echte Angebote lagen alle bei 7,99€+,
+    // selbst bei starkem Rabatt) - eine Untergrenze von 6€ filtert sowohl
+    // Pfandbetraege als auch fehlerhaft zugeordnete Preise fuer andere
+    // Gebindegroessen (z.B. Sixpack statt Kasten) zuverlaessig heraus.
+    if (price < 6 || price > 40) continue;
 
     // "-4,99 €" ist ein Rabattbetrag, kein Endpreis - direkt davorstehendes
     // Minuszeichen ausschliessen.
