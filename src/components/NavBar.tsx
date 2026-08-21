@@ -11,7 +11,7 @@ export async function NavBar() {
 
   return (
     <header className="bg-brand-dark text-white">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <Link
           href="/"
           className={`${outfit.className} flex items-center gap-2 font-bold text-lg tracking-tight`}
@@ -25,25 +25,25 @@ export async function NavBar() {
           />
           Bier App
         </Link>
-        <nav className="flex items-center gap-1 sm:gap-2 text-sm">
-          <Link href="/" className="px-3 py-1.5 rounded-lg hover:bg-white/10 transition">
+        <nav className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+          <Link href="/" className="px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition">
             Übersicht
           </Link>
-          <Link href="/angebote" className="px-3 py-1.5 rounded-lg hover:bg-white/10 transition">
+          <Link href="/angebote" className="px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition">
             Bierangebote der Woche
           </Link>
           {admin ? (
             <>
               <Link
                 href="/admin"
-                className="px-3 py-1.5 rounded-lg bg-gold text-[#3a2404] font-semibold hover:brightness-105 transition"
+                className="px-2.5 py-1.5 rounded-lg bg-gold text-[#3a2404] font-semibold hover:brightness-105 transition"
               >
                 Admin
               </Link>
               <form action={logoutAction}>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 rounded-lg hover:bg-white/10 transition"
+                  className="px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition"
                 >
                   Abmelden
                 </button>
@@ -52,7 +52,7 @@ export async function NavBar() {
           ) : (
             <Link
               href="/admin"
-              className="px-3 py-1.5 rounded-lg border border-white/40 hover:bg-white/10 transition"
+              className="px-2.5 py-1.5 rounded-lg border border-white/40 hover:bg-white/10 transition"
             >
               Admin-Login
             </Link>
