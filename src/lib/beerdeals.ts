@@ -127,6 +127,10 @@ function extractBrandOffers(html: string): { store: string; price: number }[] {
     // 3 und 40 Euro - filtert Pfandbetraege etc. heraus.
     if (price < 3 || price > 40) continue;
 
+    // "-4,99 €" ist ein Rabattbetrag, kein Endpreis - direkt davorstehendes
+    // Minuszeichen ausschliessen.
+    if (text[match.index - 1] === "-") continue;
+
     // UVP-Vergleichswerte (durchgestrichener Originalpreis) sind kein
     // echtes Angebot - werden anhand des "uvp"-Textes kurz davor erkannt.
     const immediatelyBefore = lower.slice(Math.max(0, match.index - 15), match.index);
@@ -223,11 +227,22 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   return { ok: true, message, count: collected.length };
 }
 
+/**
+ * Zeigt pro Marke nur das guenstigste Angebot - sonst wuerde eine Marke
+ * mit vielen Haendler-Treffern die Liste dominieren, statt eine
+ * abwechslungsreiche "beste Angebote"-Uebersicht zu zeigen.
+ */
 export async function getTopBeerDeals(limit = 10) {
-  return prisma.beerDeal.findMany({
-    orderBy: { price: "asc" },
-    take: limit,
-  });
+  const all = await prisma.beerDeal.findMany({ orderBy: { price: "asc" } });
+  const seenBrands = new Set<string>();
+  const deduped = [];
+  for (const deal of all) {
+    if (seenBrands.has(deal.brand)) continue;
+    seenBrands.add(deal.brand);
+    deduped.push(deal);
+    if (deduped.length >= limit) break;
+  }
+  return deduped;
 }
 
 export async function getBeerDealsConfig() {
