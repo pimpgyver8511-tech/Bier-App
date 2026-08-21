@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "@/components/NavBar";
@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Bier App",
   description: "Wer bringt den Kasten mit? Anwesenheit, Kasten-Historie und faire Zuteilung fürs Team.",
+  appleWebApp: {
+    title: "Bier App",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f4526",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
