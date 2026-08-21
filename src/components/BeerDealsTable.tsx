@@ -105,6 +105,7 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
                 </button>
               </th>
               <th className="px-3 py-2.5 font-medium"></th>
+              <th className="px-3 py-2.5 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -128,11 +129,23 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
                     🧭 Route
                   </a>
                 </td>
+                <td className="px-3 py-3">
+                  {d.offerUrl && (
+                    <a
+                      href={d.offerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="badge badge-blue border-0 font-sans hover:brightness-95 transition"
+                    >
+                      📄 Prospekt
+                    </a>
+                  )}
+                </td>
               </tr>
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 sm:px-6 py-6 text-center text-muted">
+                <td colSpan={5} className="px-5 sm:px-6 py-6 text-center text-muted">
                   Keine Angebote für diese Filterauswahl.
                 </td>
               </tr>

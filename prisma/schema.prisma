@@ -122,6 +122,7 @@ model BeerDeal {
   store     String?
   price     Float?
   sourceUrl String
+  offerUrl  String?
   fetchedAt DateTime @default(now())
 }
 

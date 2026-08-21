@@ -127,6 +127,10 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       )`,
     ],
   },
+  {
+    name: "20260821150000_beer_deal_offer_url",
+    statements: [`ALTER TABLE "BeerDeal" ADD COLUMN "offerUrl" TEXT`],
+  },
 ];
 
 export type DbSetupResult = {

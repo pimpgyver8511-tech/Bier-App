@@ -40,6 +40,12 @@ type KaufdaOfferItem = {
   title?: string;
   description?: string;
   brand?: string;
+  parentContent?: {
+    id?: string;
+    page?: {
+      number?: number;
+    };
+  };
   prices?: {
     mainPrice?: number;
   };
@@ -87,7 +93,38 @@ function extractNextData(html: string): KaufdaNextData | null {
   }
 }
 
-type ExtractedOffer = { id: string; brand: string; store: string; price: number };
+/**
+ * kaufda.de oeffnet den Prospekt fuer ein einzelnes Angebot ueber eine
+ * "/contentViewer/static/{brochureId}"-URL mit Seitenzahl und Angebots-ID
+ * als Query-Parameter - per echtem Klick auf "Prospekt oeffnen" auf
+ * kaufda.de bestaetigt. brochureId und Seitenzahl stehen am Angebot selbst
+ * in parentContent, lat/lng/zip sind die bereits verwendeten Leipzig-Werte.
+ */
+function buildOfferUrl(item: KaufdaOfferItem): string | null {
+  const brochureId = item.parentContent?.id;
+  const page = item.parentContent?.page?.number;
+  if (!brochureId || !page || !item.id) return null;
+  const params = new URLSearchParams({
+    adPlacement: "ad_placement__bv_brochure_page",
+    lat: "51.3397",
+    lng: "12.3713",
+    pageType: "LOCAL_SEARCH_RESULTS_PAGE",
+    sourceType: "PORTAL_STARTPAGE",
+    zip: "04109",
+    page: String(page),
+    locality: "Leipzig",
+    productId: item.id,
+  });
+  return `https://www.kaufda.de/contentViewer/static/${brochureId}?${params.toString()}`;
+}
+
+type ExtractedOffer = {
+  id: string;
+  brand: string;
+  store: string;
+  price: number;
+  offerUrl: string | null;
+};
 
 function extractOffers(html: string): ExtractedOffer[] {
   const data = extractNextData(html);
@@ -102,7 +139,7 @@ function extractOffers(html: string): ExtractedOffer[] {
     if (!id || !price || !store || !brand) continue;
     // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
     if (price < 6 || price > 40) continue;
-    results.push({ id, brand, store, price });
+    results.push({ id, brand, store, price, offerUrl: buildOfferUrl(item) });
   }
   return results;
 }
@@ -128,7 +165,10 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   // dasselbe Angebot liefern - Dedupe ueber die von kaufda.de vergebene
   // Angebots-ID stellt sicher, dass jedes echte Angebot nur einmal
   // gespeichert wird.
-  const collected = new Map<string, { brand: string; store: string; price: number; sourceUrl: string }>();
+  const collected = new Map<
+    string,
+    { brand: string; store: string; price: number; sourceUrl: string; offerUrl: string | null }
+  >();
   const errors: string[] = [];
 
   for (const url of KAUFDA_SOURCES) {
@@ -137,7 +177,13 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
       const offers = extractOffers(html);
       for (const o of offers) {
         if (!collected.has(o.id)) {
-          collected.set(o.id, { brand: o.brand, store: o.store, price: o.price, sourceUrl: url });
+          collected.set(o.id, {
+            brand: o.brand,
+            store: o.store,
+            price: o.price,
+            sourceUrl: url,
+            offerUrl: o.offerUrl,
+          });
         }
       }
       if (offers.length === 0) {
@@ -179,7 +225,13 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   return { ok: true, message, count: deals.length };
 }
 
-export type BeerDeal = { id: string; brand: string; store: string; price: number };
+export type BeerDeal = {
+  id: string;
+  brand: string;
+  store: string;
+  price: number;
+  offerUrl: string | null;
+};
 
 /**
  * Liefert alle Angebote flach (ein Eintrag pro Marke+Haendler-Kombination),
@@ -191,7 +243,13 @@ export async function getAllBeerDeals(): Promise<BeerDeal[]> {
   const deals: BeerDeal[] = [];
   for (const deal of all) {
     if (!deal.store || deal.price === null) continue;
-    deals.push({ id: deal.id, brand: deal.brand, store: deal.store, price: deal.price });
+    deals.push({
+      id: deal.id,
+      brand: deal.brand,
+      store: deal.store,
+      price: deal.price,
+      offerUrl: deal.offerUrl,
+    });
   }
   return deals;
 }
