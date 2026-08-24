@@ -49,6 +49,8 @@ type KaufdaOfferItem = {
   prices?: {
     mainPrice?: number;
   };
+  validFrom?: string;
+  validUntil?: string;
 };
 
 type KaufdaNextData = {
@@ -124,7 +126,16 @@ type ExtractedOffer = {
   store: string;
   price: number;
   offerUrl: string | null;
+  validFrom: Date | null;
+  validUntil: Date | null;
 };
+
+/** Parst ein ISO-Datum aus den kaufda.de-Daten, oder null bei Fehlern/Fehlen. */
+function parseDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function extractOffers(html: string): ExtractedOffer[] {
   const data = extractNextData(html);
@@ -139,7 +150,15 @@ function extractOffers(html: string): ExtractedOffer[] {
     if (!id || !price || !store || !brand) continue;
     // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
     if (price < 6 || price > 40) continue;
-    results.push({ id, brand, store, price, offerUrl: buildOfferUrl(item) });
+    results.push({
+      id,
+      brand,
+      store,
+      price,
+      offerUrl: buildOfferUrl(item),
+      validFrom: parseDate(item.validFrom),
+      validUntil: parseDate(item.validUntil),
+    });
   }
   return results;
 }
@@ -167,7 +186,15 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   // gespeichert wird.
   const collected = new Map<
     string,
-    { brand: string; store: string; price: number; sourceUrl: string; offerUrl: string | null }
+    {
+      brand: string;
+      store: string;
+      price: number;
+      sourceUrl: string;
+      offerUrl: string | null;
+      validFrom: Date | null;
+      validUntil: Date | null;
+    }
   >();
   const errors: string[] = [];
 
@@ -183,6 +210,8 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
             price: o.price,
             sourceUrl: url,
             offerUrl: o.offerUrl,
+            validFrom: o.validFrom,
+            validUntil: o.validUntil,
           });
         }
       }
@@ -231,15 +260,31 @@ export type BeerDeal = {
   store: string;
   price: number;
   offerUrl: string | null;
+  validFrom: Date | null;
+  validUntil: Date | null;
 };
 
 /**
- * Liefert alle Angebote flach (ein Eintrag pro Marke+Haendler-Kombination),
- * aufsteigend nach Preis sortiert. Filterung/Umsortierung nach Haendler,
- * Marke oder Preisrichtung passiert clientseitig in der Tabelle.
+ * Liefert alle aktuell gueltigen Angebote flach (ein Eintrag pro Marke+
+ * Haendler-Kombination), aufsteigend nach Preis sortiert. Manche Angebote
+ * (z.B. Tagesangebote) gelten nur an einem einzelnen Tag - die Filterung
+ * auf validFrom/validUntil <= jetzt <= sorgt dafuer, dass so ein Angebot
+ * nur an den Tagen angezeigt wird, an denen es tatsaechlich gilt, egal
+ * wann zuletzt synchronisiert wurde. Angebote ohne Gueltigkeitsangabe
+ * werden immer angezeigt. Filterung/Umsortierung nach Haendler, Marke
+ * oder Preisrichtung passiert clientseitig in der Tabelle.
  */
 export async function getAllBeerDeals(): Promise<BeerDeal[]> {
-  const all = await prisma.beerDeal.findMany({ orderBy: { price: "asc" } });
+  const now = new Date();
+  const all = await prisma.beerDeal.findMany({
+    where: {
+      AND: [
+        { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+        { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+      ],
+    },
+    orderBy: { price: "asc" },
+  });
   const deals: BeerDeal[] = [];
   for (const deal of all) {
     if (!deal.store || deal.price === null) continue;
@@ -249,6 +294,8 @@ export async function getAllBeerDeals(): Promise<BeerDeal[]> {
       store: deal.store,
       price: deal.price,
       offerUrl: deal.offerUrl,
+      validFrom: deal.validFrom,
+      validUntil: deal.validUntil,
     });
   }
   return deals;

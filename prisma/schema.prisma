@@ -113,17 +113,21 @@ model SpielerplusConfig {
   lastSyncMsg String?
 }
 
-// Woechentlich per Cron befuellte Bierkasten-Angebote (siehe
+// Taeglich per Cron befuellte Bierkasten-Angebote (siehe
 // src/lib/beerdeals.ts). Wird bei jedem Sync komplett geleert und neu
-// befuellt - es gibt bewusst keine Historie, nur "diese Woche".
+// befuellt - es gibt bewusst keine Historie, nur die aktuell gueltigen
+// Angebote. validFrom/validUntil filtern Tagesangebote, die nur an
+// einzelnen Tagen gelten (siehe getAllBeerDeals).
 model BeerDeal {
-  id        String   @id @default(cuid())
-  brand     String
-  store     String?
-  price     Float?
-  sourceUrl String
-  offerUrl  String?
-  fetchedAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  brand      String
+  store      String?
+  price      Float?
+  sourceUrl  String
+  offerUrl   String?
+  validFrom  DateTime?
+  validUntil DateTime?
+  fetchedAt  DateTime  @default(now())
 }
 
 model BeerDealsConfig {

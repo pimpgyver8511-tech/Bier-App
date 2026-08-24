@@ -131,6 +131,13 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
     name: "20260821150000_beer_deal_offer_url",
     statements: [`ALTER TABLE "BeerDeal" ADD COLUMN "offerUrl" TEXT`],
   },
+  {
+    name: "20260825090000_beer_deal_validity",
+    statements: [
+      `ALTER TABLE "BeerDeal" ADD COLUMN "validFrom" TIMESTAMP(3)`,
+      `ALTER TABLE "BeerDeal" ADD COLUMN "validUntil" TIMESTAMP(3)`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {
