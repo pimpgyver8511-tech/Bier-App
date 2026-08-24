@@ -241,6 +241,7 @@ type KaufdaBrochureOfferContent = {
     name?: string;
     brandName?: string;
     description?: { paragraph?: string }[];
+    categoryPaths?: { id?: string; name?: string }[];
   }[];
   deals?: {
     type?: string;
@@ -281,12 +282,31 @@ async function fetchBrochurePages(brochureId: string): Promise<KaufdaBrochurePag
 }
 
 /**
+ * kaufda.de klassifiziert jedes Produkt ueber eine categoryPaths-Kette der
+ * Bonial-Kategorietaxonomie - fuer Bier ist darin immer ein Eintrag
+ * "DE-1496"/"Bier" enthalten, egal welche Bier-Unterkategorie (Fassbier,
+ * Weissbier, Biermarken, ...) oder Marke. Das unterscheidet echtes Bier
+ * von anderen, ebenfalls im Kasten verkauften Getraenken (Cola, Limonade,
+ * Spirituosen), die searchBierBrochureIds() zwangslaeufig mitbringt: ein
+ * ganzer Prospekt gilt dort schon als Treffer, wenn irgendwo darin ein
+ * Bier-Angebot steckt - per echtem Beispiel des Nutzers bestaetigt (Coca-
+ * Cola, Limoncello, Jaegermeister im selben METRO-Prospekt wie mehrere
+ * echte Bier-Angebote).
+ */
+function isBeerCategory(categoryPaths: { id?: string; name?: string }[] | undefined): boolean {
+  if (!categoryPaths) return false;
+  return categoryPaths.some((c) => c.id === "DE-1496" || c.name?.toLowerCase() === "bier");
+}
+
+/**
  * Extrahiert vollstaendige Bierkasten-Angebote (Marke, Haendler, Preis,
  * praezise Gueltigkeit) direkt aus den Prospekt-Seitendaten - mit echten
  * Beispieldaten des Nutzers verifiziert. Im Gegensatz zu extractOffers()
- * (Kategorie-/Marken-Seiten) ist das hier markenunabhaengig: es
+ * (Kategorie-/Marken-Seiten, dort ist die Marke bereits durch die Seite
+ * selbst auf Bier eingeschraenkt) ist das hier markenunabhaengig: es
  * funktioniert fuer jeden Haendler/jede Marke in diesem Prospekt, auch
- * fuer Marken ohne eigene kaufda.de-Seite (z.B. Sternburg).
+ * fuer Marken ohne eigene kaufda.de-Seite (z.B. Sternburg) - deshalb ist
+ * hier zusaetzlich der isBeerCategory()-Check noetig.
  */
 function extractOffersFromBrochurePages(data: KaufdaBrochurePagesResponse): ExtractedOffer[] {
   const results: ExtractedOffer[] = [];
@@ -295,6 +315,7 @@ function extractOffersFromBrochurePages(data: KaufdaBrochurePagesResponse): Extr
       const content = offer.content;
       if (!content) continue;
       const product = content.products?.[0];
+      if (!isBeerCategory(product?.categoryPaths)) continue;
       const description = product?.description?.map((d) => d.paragraph ?? "").join(" ");
       if (!isFullCase(description)) continue;
 
