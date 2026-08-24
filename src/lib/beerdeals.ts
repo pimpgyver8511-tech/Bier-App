@@ -134,15 +134,20 @@ function isFullCase(description: string | undefined): boolean {
  * verfaelschen.
  */
 function normalizeBrandName(brand: string): string {
-  const trimmed = brand.trim();
-  if (trimmed !== trimmed.toUpperCase() || trimmed === trimmed.toLowerCase()) {
-    return trimmed;
+  let trimmed = brand.trim();
+  if (trimmed === trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase()) {
+    trimmed = trimmed
+      .toLowerCase()
+      .split(/(\s+|-)/)
+      .map((part) => (/^[\s-]+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+      .join("");
   }
-  return trimmed
-    .toLowerCase()
-    .split(/(\s+|-)/)
-    .map((part) => (/^[\s-]+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join("");
+  // Manche Quellen haengen an den eigentlichen Markennamen noch das Wort
+  // "Bier" an (z.B. "Beck's Bier" statt "Beck's", per echtem Nutzer-
+  // Screenshot bestaetigt) - dieses generische Suffix wird entfernt, damit
+  // dieselbe Marke nicht doppelt in der Marken-Filterliste auftaucht.
+  const withoutBierSuffix = trimmed.replace(/\s+Bier$/i, "").trim();
+  return withoutBierSuffix || trimmed;
 }
 
 function extractNextData(html: string): KaufdaNextData | null {
