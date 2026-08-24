@@ -230,6 +230,7 @@ export async function importAttendanceFromCsv(
 
   let matchedCount = 0;
   const unmatchedNames: string[] = [];
+  const matchedPlayerIds = new Set<string>();
   for (const row of rows) {
     const playerId = playerByName.get(row.name.toLowerCase());
     if (!playerId) {
@@ -241,7 +242,26 @@ export async function importAttendanceFromCsv(
       update: { status: row.status, source: "SPIELERPLUS" },
       create: { matchId, playerId, status: row.status, source: "SPIELERPLUS" },
     });
+    matchedPlayerIds.add(playerId);
     matchedCount++;
+  }
+
+  // Ein Re-Import ersetzt die komplette Spielerplus-Teilnehmerliste fuer
+  // dieses Spiel - Spieler, die beim letzten Import noch dabei waren aber
+  // in der aktuellen Datei fehlen, sollen nicht als Zusage haengen bleiben
+  // (z.B. weil sie ihre Zusage bei Spielerplus zurueckgezogen haben).
+  // Manuell gesetzte Anwesenheiten (source MANUAL) bleiben unangetastet.
+  // Nur bei mindestens einem Treffer ausfuehren, damit ein fehlerhafter
+  // Import (z.B. falsche Datei, Namen passen nicht) nicht versehentlich
+  // alle bestehenden Zusagen loescht.
+  if (matchedPlayerIds.size > 0) {
+    await prisma.attendance.deleteMany({
+      where: {
+        matchId,
+        source: "SPIELERPLUS",
+        playerId: { notIn: Array.from(matchedPlayerIds) },
+      },
+    });
   }
 
   const message =
