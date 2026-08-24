@@ -324,17 +324,33 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   }
 
   const now = new Date();
+  // Zwei Prospekte desselben Haendlers koennen dasselbe Angebot parallel
+  // fuehren (z.B. Haupt- und Beilagen-Prospekt) - kaufda.de vergibt dafuer
+  // zwei unterschiedliche Angebots-IDs, obwohl Marke, Haendler und Preis
+  // identisch sind (per echtem Nutzer-Beispiel bestaetigt: zwei Warsteiner-
+  // Angebote bei Kaufland, unterschiedliche brochureId/productId, exakt
+  // gleicher Preis). Da unsere Tabelle ohnehin nur Marke/Haendler/Preis
+  // zeigt, waeren solche Duplikate fuer den Nutzer nicht unterscheidbar -
+  // deshalb zusaetzlich auf dieser Kombination deduplizieren.
+  const seenDealKeys = new Set<string>();
   // brochureId war nur fuer den Abgleich mit fetchBrochureValidities noetig
   // und ist keine Spalte in der Datenbank.
-  const deals = Array.from(collected.values()).map((deal) => ({
-    brand: deal.brand,
-    store: deal.store,
-    price: deal.price,
-    sourceUrl: deal.sourceUrl,
-    offerUrl: deal.offerUrl,
-    validFrom: deal.validFrom,
-    validUntil: deal.validUntil,
-  }));
+  const deals = Array.from(collected.values())
+    .filter((deal) => {
+      const key = `${deal.brand.toLowerCase()}|${deal.store.toLowerCase()}|${deal.price}`;
+      if (seenDealKeys.has(key)) return false;
+      seenDealKeys.add(key);
+      return true;
+    })
+    .map((deal) => ({
+      brand: deal.brand,
+      store: deal.store,
+      price: deal.price,
+      sourceUrl: deal.sourceUrl,
+      offerUrl: deal.offerUrl,
+      validFrom: deal.validFrom,
+      validUntil: deal.validUntil,
+    }));
 
   if (deals.length === 0) {
     const message =
