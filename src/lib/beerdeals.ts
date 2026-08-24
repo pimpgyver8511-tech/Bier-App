@@ -123,6 +123,28 @@ function isFullCase(description: string | undefined): boolean {
   return Number(match[1]) >= 18;
 }
 
+/**
+ * kaufda.de liefert dieselbe Marke je nach Quelle mal normal, mal komplett
+ * in Versalien (z.B. "Sachsengold" von einer Marken-Seite, "SACHSENGOLD"
+ * aus einem Prospekt) - per echtem Nutzer-Screenshot bestaetigt (auch
+ * "Jever"/"JEVER" und "Moenchshof"/"MOENCHSHOF" betroffen). Ohne
+ * Normalisierung erscheint so dieselbe Marke doppelt in der Marken-Filter-
+ * liste. Nur reine Versalien-Schreibweisen werden umgewandelt, um Marken
+ * mit bewusst gemischter Schreibung (z.B. "iPhone"-artige Faelle) nicht zu
+ * verfaelschen.
+ */
+function normalizeBrandName(brand: string): string {
+  const trimmed = brand.trim();
+  if (trimmed !== trimmed.toUpperCase() || trimmed === trimmed.toLowerCase()) {
+    return trimmed;
+  }
+  return trimmed
+    .toLowerCase()
+    .split(/(\s+|-)/)
+    .map((part) => (/^[\s-]+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join("");
+}
+
 function extractNextData(html: string): KaufdaNextData | null {
   const match = html.match(
     /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
@@ -192,7 +214,7 @@ function extractOffers(html: string): ExtractedOffer[] {
     if (!isFullCase(item.description)) continue;
     const price = item.prices?.mainPrice;
     const store = item.publisherName;
-    const brand = item.brand || item.title;
+    const brand = normalizeBrandName(item.brand || item.title || "");
     const id = item.id;
     if (!id || !price || !store || !brand) continue;
     // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
@@ -322,7 +344,7 @@ function extractOffersFromBrochurePages(data: KaufdaBrochurePagesResponse): Extr
       const salesPrice = content.deals?.find((d) => d.type === "SALES_PRICE");
       const price = salesPrice?.min ?? salesPrice?.max;
       const store = content.publisher?.name;
-      const brand = product?.brandName || product?.name;
+      const brand = normalizeBrandName(product?.brandName || product?.name || "");
       const id = content.id;
       if (!id || !price || !store || !brand) continue;
       // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
