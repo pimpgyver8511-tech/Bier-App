@@ -36,7 +36,7 @@ const KAUFDA_SOURCES = [
   "https://www.kaufda.de/Leipzig/Angebote/Hasseroeder-Pilsener",
   "https://www.kaufda.de/Leipzig/Angebote/Freiberger",
   "https://www.kaufda.de/Leipzig/Angebote/Berliner-Pilsener",
-  "https://www.kaufda.de/Leipzig/Angebote/Sternburg",
+  "https://www.kaufda.de/Leipzig/Angebote/Fassbier",
   "https://www.kaufda.de/Leipzig/Angebote/Ur-Krostitzer",
   "https://www.kaufda.de/Leipzig/Angebote/Luebzer",
   "https://www.kaufda.de/Leipzig/Angebote/Wernesgruener",
