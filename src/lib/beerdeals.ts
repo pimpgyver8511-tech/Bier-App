@@ -169,7 +169,12 @@ function buildOfferUrlFromParts(
   page: number | undefined,
   productId: string | undefined
 ): string | null {
-  if (!brochureId || !page || !productId) return null;
+  // "page" ist 0-indiziert (das erste Prospekt-Blatt ist Seite 0) - eine
+  // simple "!page"-Pruefung wuerde diesen gueltigen Fall faelschlich als
+  // fehlend behandeln (per echtem Nutzer-Beispiel bestaetigt: Radeberger
+  // bei Netto Marken-Discount lag auf Seite 0 und hatte deshalb keinen
+  // Prospekt-Link).
+  if (!brochureId || page === undefined || page === null || !productId) return null;
   const params = new URLSearchParams({
     adPlacement: "ad_placement__bv_brochure_page",
     lat: KAUFDA_LEIPZIG_LAT,
