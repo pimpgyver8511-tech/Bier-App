@@ -10,10 +10,14 @@ export type BeerDealsSyncResult = {
  * kaufda.de liefert pro Kategorie- bzw. Marken-Seite serverseitig
  * gerenderte Angebotsdaten direkt im "__NEXT_DATA__"-Script-Tag der Seite
  * (bestaetigt per echtem Seitenquelltext) - eine zusaetzliche API-Anfrage
- * ist nicht noetig. Die allgemeine Bier-Seite deckt die meisten Angebote
- * ab, die Marken-Seiten fangen zusaetzlich Angebote auf, die dort nicht
- * gelistet sind (z.B. weil kaufda.de sie nur der jeweiligen Marken-Seite
- * zuordnet).
+ * ist nicht noetig. Die allgemeine Bier-Seite ("Bier" unten) deckt dabei
+ * NICHT alle Angebote ab: sie meldet z.B. "totalItems": 151, bettet aber
+ * nur die ersten 16 davon in die Seite ein (der Rest laedt vermutlich
+ * client-seitig beim Scrollen nach) - deshalb werden zusaetzlich moeglichst
+ * viele einzelne Marken-Seiten abgefragt, die jeweils ihre eigenen (meist
+ * vollstaendigen) Angebote liefern. Eine Markenliste kann dabei nie zu
+ * 100% vollstaendig sein (es gibt >1500 deutsche Brauereien) - fehlt eine
+ * Marke, taucht sie erst wieder auf, wenn sie hier ergaenzt wird.
  */
 const KAUFDA_SOURCES = [
   "https://www.kaufda.de/Leipzig/Angebote/Bier",
@@ -33,6 +37,38 @@ const KAUFDA_SOURCES = [
   "https://www.kaufda.de/Leipzig/Angebote/Freiberger",
   "https://www.kaufda.de/Leipzig/Angebote/Berliner-Pilsener",
   "https://www.kaufda.de/Leipzig/Angebote/Sternburg",
+  "https://www.kaufda.de/Leipzig/Angebote/Ur-Krostitzer",
+  "https://www.kaufda.de/Leipzig/Angebote/Luebzer",
+  "https://www.kaufda.de/Leipzig/Angebote/Wernesgruener",
+  "https://www.kaufda.de/Leipzig/Angebote/Heineken",
+  "https://www.kaufda.de/Leipzig/Angebote/Spaten",
+  "https://www.kaufda.de/Leipzig/Angebote/Pilsner-Urquell",
+  "https://www.kaufda.de/Leipzig/Angebote/Benediktiner",
+  "https://www.kaufda.de/Leipzig/Angebote/Paulaner",
+  "https://www.kaufda.de/Leipzig/Angebote/Franziskaner",
+  "https://www.kaufda.de/Leipzig/Angebote/Loewenbraeu",
+  "https://www.kaufda.de/Leipzig/Angebote/Diebels",
+  "https://www.kaufda.de/Leipzig/Angebote/Paderborner",
+  "https://www.kaufda.de/Leipzig/Angebote/Koenig-Pilsener",
+  "https://www.kaufda.de/Leipzig/Angebote/Jever",
+  "https://www.kaufda.de/Leipzig/Angebote/Flensburger",
+  "https://www.kaufda.de/Leipzig/Angebote/Astra",
+  "https://www.kaufda.de/Leipzig/Angebote/Karlsberg",
+  "https://www.kaufda.de/Leipzig/Angebote/Wickueler",
+  "https://www.kaufda.de/Leipzig/Angebote/Schoefferhofer",
+  "https://www.kaufda.de/Leipzig/Angebote/Licher",
+  "https://www.kaufda.de/Leipzig/Angebote/Gaffel",
+  "https://www.kaufda.de/Leipzig/Angebote/Reissdorf",
+  "https://www.kaufda.de/Leipzig/Angebote/Fruh",
+  "https://www.kaufda.de/Leipzig/Angebote/Duckstein",
+  "https://www.kaufda.de/Leipzig/Angebote/Landskron",
+  "https://www.kaufda.de/Leipzig/Angebote/Kulmbacher",
+  "https://www.kaufda.de/Leipzig/Angebote/Moenchshof",
+  "https://www.kaufda.de/Leipzig/Angebote/Einbecker",
+  "https://www.kaufda.de/Leipzig/Angebote/Goesser",
+  "https://www.kaufda.de/Leipzig/Angebote/Corona",
+  "https://www.kaufda.de/Leipzig/Angebote/Desperados",
+  "https://www.kaufda.de/Leipzig/Angebote/Meisterbraeu",
 ];
 
 type KaufdaOfferItem = {
@@ -265,29 +301,40 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   >();
   const errors: string[] = [];
 
-  for (const url of KAUFDA_SOURCES) {
-    try {
+  // Die Quellseiten werden parallel abgefragt (inzwischen knapp 50 Marken-
+  // Seiten) - sequentiell wuerde das den Sync unnoetig in die Laenge
+  // ziehen, ein einzelner fehlschlagender Abruf soll die anderen nicht
+  // blockieren.
+  const sourceResults = await Promise.allSettled(
+    KAUFDA_SOURCES.map(async (url) => {
       const html = await fetchText(url);
-      const offers = extractOffers(html);
-      for (const o of offers) {
-        if (!collected.has(o.id)) {
-          collected.set(o.id, {
-            brand: o.brand,
-            store: o.store,
-            price: o.price,
-            sourceUrl: url,
-            offerUrl: o.offerUrl,
-            brochureId: o.brochureId,
-            validFrom: o.validFrom,
-            validUntil: o.validUntil,
-          });
-        }
+      return { url, offers: extractOffers(html), htmlLength: html.length };
+    })
+  );
+  for (let i = 0; i < sourceResults.length; i++) {
+    const result = sourceResults[i];
+    const url = KAUFDA_SOURCES[i];
+    if (result.status === "rejected") {
+      errors.push(`${url}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      continue;
+    }
+    const { offers, htmlLength } = result.value;
+    for (const o of offers) {
+      if (!collected.has(o.id)) {
+        collected.set(o.id, {
+          brand: o.brand,
+          store: o.store,
+          price: o.price,
+          sourceUrl: url,
+          offerUrl: o.offerUrl,
+          brochureId: o.brochureId,
+          validFrom: o.validFrom,
+          validUntil: o.validUntil,
+        });
       }
-      if (offers.length === 0) {
-        errors.push(`${url}: keine Treffer (Antwort ${html.length} Zeichen)`);
-      }
-    } catch (err) {
-      errors.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (offers.length === 0) {
+      errors.push(`${url}: keine Treffer (Antwort ${htmlLength} Zeichen)`);
     }
   }
 
