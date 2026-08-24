@@ -7,25 +7,6 @@ function mapsUrl(store: string) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${store} Leipzig`)}`;
 }
 
-function formatDay(d: Date) {
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" });
-}
-
-/**
- * Manche Angebote (z.B. Tagesangebote) gelten nur an einem einzelnen Tag
- * statt die ganze Woche - das wird hier sichtbar gemacht, statt sie wie
- * ein normales Wochenangebot aussehen zu lassen.
- */
-function formatValidity(d: BeerDeal): string | null {
-  if (d.validFrom && d.validUntil) {
-    const fromDay = formatDay(d.validFrom);
-    const untilDay = formatDay(d.validUntil);
-    return fromDay === untilDay ? `nur am ${fromDay}` : `bis ${untilDay}`;
-  }
-  if (d.validUntil) return `bis ${formatDay(d.validUntil)}`;
-  return null;
-}
-
 export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
   const [storeFilter, setStoreFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
@@ -123,7 +104,6 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
                   Preis {sortDir === "asc" ? "↑" : "↓"}
                 </button>
               </th>
-              <th className="px-3 py-2.5 font-medium">Gültig</th>
               <th className="px-3 py-2.5 font-medium"></th>
               <th className="px-3 py-2.5 font-medium"></th>
             </tr>
@@ -139,7 +119,6 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
                 <td className="px-3 py-3 font-semibold text-brand-dark">
                   {d.price.toFixed(2).replace(".", ",")} €{d.id === cheapestId && " 🏆"}
                 </td>
-                <td className="px-3 py-3 text-muted whitespace-nowrap">{formatValidity(d) ?? "–"}</td>
                 <td className="px-3 py-3">
                   {d.offerUrl && (
                     <a
@@ -166,7 +145,7 @@ export function BeerDealsTable({ deals }: { deals: BeerDeal[] }) {
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 sm:px-6 py-6 text-center text-muted">
+                <td colSpan={5} className="px-5 sm:px-6 py-6 text-center text-muted">
                   Keine Angebote für diese Filterauswahl.
                 </td>
               </tr>
