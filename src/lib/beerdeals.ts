@@ -32,6 +32,7 @@ const KAUFDA_SOURCES = [
   "https://www.kaufda.de/Leipzig/Angebote/Hasseroeder-Pilsener",
   "https://www.kaufda.de/Leipzig/Angebote/Freiberger",
   "https://www.kaufda.de/Leipzig/Angebote/Berliner-Pilsener",
+  "https://www.kaufda.de/Leipzig/Angebote/Sternburg",
 ];
 
 type KaufdaOfferItem = {
