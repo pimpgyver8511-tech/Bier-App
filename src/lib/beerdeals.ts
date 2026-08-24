@@ -13,11 +13,14 @@ export type BeerDealsSyncResult = {
  * ist nicht noetig. Die allgemeine Bier-Seite ("Bier" unten) deckt dabei
  * NICHT alle Angebote ab: sie meldet z.B. "totalItems": 151, bettet aber
  * nur die ersten 16 davon in die Seite ein (der Rest laedt vermutlich
- * client-seitig beim Scrollen nach) - deshalb werden zusaetzlich moeglichst
- * viele einzelne Marken-Seiten abgefragt, die jeweils ihre eigenen (meist
- * vollstaendigen) Angebote liefern. Eine Markenliste kann dabei nie zu
- * 100% vollstaendig sein (es gibt >1500 deutsche Brauereien) - fehlt eine
- * Marke, taucht sie erst wieder auf, wenn sie hier ergaenzt wird.
+ * client-seitig beim Scrollen nach). Eine Markenliste kann prinzipbedingt
+ * nie zu 100% vollstaendig sein (kaufda.de bietet nur fuer eine feste,
+ * kleine Auswahl an Marken eigene SEO-Seiten an - kleinere/regionale
+ * Marken wie Sternburg haben gar keine eigene Seite, per echtem
+ * Nutzer-Test bestaetigt: 403 beim Versuch, eine geratene URL dafuer
+ * aufzurufen). Diese Liste bleibt als zusaetzliche, verlaessliche Quelle
+ * bestehen, ist aber NICHT mehr die einzige - siehe searchBierBrochureIds()
+ * weiter unten fuer die markenunabhaengige Vollstaendigkeits-Ergaenzung.
  */
 const KAUFDA_SOURCES = [
   "https://www.kaufda.de/Leipzig/Angebote/Bier",
@@ -136,25 +139,31 @@ function extractNextData(html: string): KaufdaNextData | null {
  * kaufda.de oeffnet den Prospekt fuer ein einzelnes Angebot ueber eine
  * "/contentViewer/static/{brochureId}"-URL mit Seitenzahl und Angebots-ID
  * als Query-Parameter - per echtem Klick auf "Prospekt oeffnen" auf
- * kaufda.de bestaetigt. brochureId und Seitenzahl stehen am Angebot selbst
- * in parentContent, lat/lng/zip sind die bereits verwendeten Leipzig-Werte.
+ * kaufda.de bestaetigt. lat/lng/zip sind die bereits verwendeten
+ * Leipzig-Werte.
  */
-function buildOfferUrl(item: KaufdaOfferItem): string | null {
-  const brochureId = item.parentContent?.id;
-  const page = item.parentContent?.page?.number;
-  if (!brochureId || !page || !item.id) return null;
+function buildOfferUrlFromParts(
+  brochureId: string | undefined,
+  page: number | undefined,
+  productId: string | undefined
+): string | null {
+  if (!brochureId || !page || !productId) return null;
   const params = new URLSearchParams({
     adPlacement: "ad_placement__bv_brochure_page",
-    lat: "51.3397",
-    lng: "12.3713",
+    lat: KAUFDA_LEIPZIG_LAT,
+    lng: KAUFDA_LEIPZIG_LNG,
     pageType: "LOCAL_SEARCH_RESULTS_PAGE",
     sourceType: "PORTAL_STARTPAGE",
     zip: "04109",
     page: String(page),
     locality: "Leipzig",
-    productId: item.id,
+    productId,
   });
   return `https://www.kaufda.de/contentViewer/static/${brochureId}?${params.toString()}`;
+}
+
+function buildOfferUrl(item: KaufdaOfferItem): string | null {
+  return buildOfferUrlFromParts(item.parentContent?.id, item.parentContent?.page?.number, item.id);
 }
 
 type ExtractedOffer = {
@@ -211,68 +220,157 @@ function extractOffers(html: string): ExtractedOffer[] {
 const KAUFDA_LEIPZIG_LAT = "51.3397";
 const KAUFDA_LEIPZIG_LNG = "12.3713";
 
+// Gemeinsame Browser-Header fuer alle kaufda.de-Anfragen (HTML wie JSON-
+// APIs) - Preisvergleichsseiten erkennen/blockieren selbst erklaerende
+// Bot-User-Agents haeufig.
+const KAUFDA_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+type KaufdaBrochureOfferContent = {
+  id?: string;
+  publisher?: {
+    name?: string;
+  };
+  parentContent?: {
+    id?: string;
+    page?: {
+      number?: number;
+    };
+  };
+  products?: {
+    name?: string;
+    brandName?: string;
+    description?: { paragraph?: string }[];
+  }[];
+  deals?: {
+    type?: string;
+    max?: number;
+    min?: number;
+  }[];
+  publicationProfiles?: {
+    validity?: {
+      startDate?: string;
+      endDate?: string;
+    };
+  }[];
+};
+
 type KaufdaBrochurePagesResponse = {
   contents?: {
     offers?: {
-      content?: {
-        id?: string;
-        publicationProfiles?: {
-          validity?: {
-            startDate?: string;
-            endDate?: string;
-          };
-        }[];
-      };
+      content?: KaufdaBrochureOfferContent;
     }[];
   }[];
 };
 
 /**
- * Liefert die tatsaechliche, produktgenaue Gueltigkeit jedes Angebots in
- * einem Prospekt. Die Kategorie-/Marken-Seiten (KAUFDA_SOURCES) liefern
- * pro Angebot nur den groben Prospekt-Zeitraum (z.B. die ganze Woche) -
- * echte Tagesangebote sind darueber nicht erkennbar. Dieser Endpunkt
- * (von der kaufda.de-Prospekt-Viewer-App genutzt, per Network-Tab-Capture
- * des Nutzers gefunden) liefert dagegen pro einzelnem Angebot ein
- * publicationProfiles[0].validity-Feld mit der echten Gueltigkeit.
+ * Roh-Abruf aller Seiten/Angebote eines einzelnen Prospekts. Wird von der
+ * kaufda.de-Prospekt-Viewer-App selbst genutzt (per Network-Tab-Capture
+ * des Nutzers gefunden) und liefert - anders als die Kategorie-/Marken-
+ * Seiten - pro Angebot die tatsaechliche, produktgenaue Gueltigkeit
+ * (publicationProfiles[0].validity) statt nur des groben Prospekt-
+ * Zeitraums.
  */
-async function fetchBrochureValidities(
-  brochureId: string
-): Promise<Map<string, { validFrom: Date | null; validUntil: Date | null }>> {
+async function fetchBrochurePages(brochureId: string): Promise<KaufdaBrochurePagesResponse> {
   const url = `https://content-viewer-be.kaufda.de/v1/brochures/${brochureId}/pages?partner=kaufda_web&brochureKey=&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}`;
   const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      Accept: "application/json",
-    },
+    headers: { "User-Agent": KAUFDA_USER_AGENT, Accept: "application/json" },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = (await res.json()) as KaufdaBrochurePagesResponse;
+  return (await res.json()) as KaufdaBrochurePagesResponse;
+}
 
-  const validities = new Map<string, { validFrom: Date | null; validUntil: Date | null }>();
-  for (const page of data.contents ?? []) {
-    for (const offer of page.offers ?? []) {
-      const id = offer.content?.id;
-      const validity = offer.content?.publicationProfiles?.[0]?.validity;
-      if (!id || !validity) continue;
-      validities.set(id, {
-        validFrom: parseDate(validity.startDate),
-        validUntil: parseDate(validity.endDate),
+/**
+ * Extrahiert vollstaendige Bierkasten-Angebote (Marke, Haendler, Preis,
+ * praezise Gueltigkeit) direkt aus den Prospekt-Seitendaten - mit echten
+ * Beispieldaten des Nutzers verifiziert. Im Gegensatz zu extractOffers()
+ * (Kategorie-/Marken-Seiten) ist das hier markenunabhaengig: es
+ * funktioniert fuer jeden Haendler/jede Marke in diesem Prospekt, auch
+ * fuer Marken ohne eigene kaufda.de-Seite (z.B. Sternburg).
+ */
+function extractOffersFromBrochurePages(data: KaufdaBrochurePagesResponse): ExtractedOffer[] {
+  const results: ExtractedOffer[] = [];
+  for (const pageEntry of data.contents ?? []) {
+    for (const offer of pageEntry.offers ?? []) {
+      const content = offer.content;
+      if (!content) continue;
+      const product = content.products?.[0];
+      const description = product?.description?.map((d) => d.paragraph ?? "").join(" ");
+      if (!isFullCase(description)) continue;
+
+      const salesPrice = content.deals?.find((d) => d.type === "SALES_PRICE");
+      const price = salesPrice?.min ?? salesPrice?.max;
+      const store = content.publisher?.name;
+      const brand = product?.brandName || product?.name;
+      const id = content.id;
+      if (!id || !price || !store || !brand) continue;
+      // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
+      if (price < 6 || price > 40) continue;
+
+      const brochureId = content.parentContent?.id;
+      const pageNumber = content.parentContent?.page?.number;
+      const validity = content.publicationProfiles?.[0]?.validity;
+      results.push({
+        id,
+        brand,
+        store,
+        price,
+        offerUrl: buildOfferUrlFromParts(brochureId, pageNumber, id),
+        brochureId: brochureId ?? null,
+        validFrom: parseDate(validity?.startDate),
+        validUntil: parseDate(validity?.endDate),
       });
     }
   }
-  return validities;
+  return results;
 }
 
-// Ein selbst erklaerender Bot-User-Agent wird von Prospekt-/
-// Preisvergleichsseiten haeufig erkannt und blockiert - deshalb wird hier
-// ein normaler Browser-User-Agent samt typischer Browser-Header verwendet.
+type KaufdaSearchResponse = {
+  searchResults?: {
+    contents?: {
+      brochures?: {
+        content?: {
+          id?: string;
+        };
+      }[];
+    };
+  };
+};
+
+/**
+ * Durchsucht kaufda.de markenunabhaengig nach "Bier"-Prospekten - dieselbe
+ * paginierte Suche, die die Webseite selbst beim Scrollen der allgemeinen
+ * Bier-Seite nachlaedt (per Network-Tab-Capture des Nutzers gefunden:
+ * /api/search?query=Bier&offset=N&limit=24). Anders als KAUFDA_SOURCES ist
+ * das nicht auf eine feste Markenliste beschraenkt - liefert die IDs
+ * aller Prospekte, die aktuell ein "Bier"-Angebot in Leipzig fuehren,
+ * egal ob die Marke eine eigene kaufda.de-Seite hat oder nicht. Bricht
+ * ab, sobald eine Seite weniger Treffer liefert als angefragt (Ende der
+ * Ergebnisse) oder ein Abruf fehlschlaegt.
+ */
+async function searchBierBrochureIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const limit = 24;
+  for (let offset = 0; offset < 500; offset += limit) {
+    const url = `https://www.kaufda.de/api/search?query=Bier&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}&offset=${offset}&limit=${limit}`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": KAUFDA_USER_AGENT, Accept: "application/json" },
+    });
+    if (!res.ok) break;
+    const data = (await res.json()) as KaufdaSearchResponse;
+    const brochures = data.searchResults?.contents?.brochures ?? [];
+    for (const b of brochures) {
+      if (b.content?.id) ids.add(b.content.id);
+    }
+    if (brochures.length < limit) break;
+  }
+  return ids;
+}
+
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "User-Agent": KAUFDA_USER_AGENT,
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
       "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
     },
@@ -338,36 +436,52 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     }
   }
 
-  // Praezise Tages-Gueltigkeit pro Prospekt nachladen (siehe
-  // fetchBrochureValidities) und die grobe Wochenspanne von oben damit
-  // ueberschreiben, wo verfuegbar. Prospekte werden parallel abgefragt,
-  // ein einzelner fehlschlagender Prospekt wirft den restlichen Sync
-  // nicht um - die grobe Gueltigkeit bleibt dann als Fallback stehen.
+  // Markenunabhaengige Vollstaendigkeits-Ergaenzung: die Markenliste oben
+  // erfasst nur Haendler/Marken mit eigener kaufda.de-Seite. Zusaetzlich
+  // wird nach allen Prospekten gesucht, die aktuell ein "Bier"-Angebot in
+  // Leipzig fuehren (per echtem Nutzer-Beispiel: Sternburg bei Marktkauf
+  // hat keine eigene Marken-Seite und wurde so verpasst) - vereinigt mit
+  // den Prospekten, die oben schon per Markenliste gefunden wurden.
   const brochureIds = new Set<string>();
   for (const deal of collected.values()) {
     if (deal.brochureId) brochureIds.add(deal.brochureId);
   }
-  const validityResults = await Promise.allSettled(
+  try {
+    for (const id of await searchBierBrochureIds()) brochureIds.add(id);
+  } catch (err) {
+    errors.push(`Bier-Suche: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Fuer jeden gefundenen Prospekt werden die vollstaendigen Angebote
+  // (Marke, Haendler, Preis, praezise Tages-Gueltigkeit) direkt aus den
+  // Prospekt-Seitendaten geladen - praeziser als die Kategorie-/Marken-
+  // Seiten und funktioniert fuer jede Marke, nicht nur die gelisteten.
+  // Ueberschreibt bestehende Eintraege aus der Markenliste mit dieser
+  // vollstaendigeren Quelle; ein fehlschlagender Prospekt wirft den
+  // restlichen Sync nicht um - betroffene Angebote behalten dann ihre
+  // (groebere) Gueltigkeit aus der Markenliste, falls sie von dort kamen.
+  const brochureResults = await Promise.allSettled(
     Array.from(brochureIds, async (brochureId) => ({
       brochureId,
-      validities: await fetchBrochureValidities(brochureId),
+      offers: extractOffersFromBrochurePages(await fetchBrochurePages(brochureId)),
     }))
   );
-  for (const result of validityResults) {
+  for (const result of brochureResults) {
     if (result.status === "rejected") {
-      errors.push(
-        `Praezise Gueltigkeit: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
-      );
+      errors.push(`Prospekt: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
       continue;
     }
-    const { brochureId, validities } = result.value;
-    for (const [offerId, deal] of collected) {
-      if (deal.brochureId !== brochureId) continue;
-      const precise = validities.get(offerId);
-      if (precise) {
-        deal.validFrom = precise.validFrom ?? deal.validFrom;
-        deal.validUntil = precise.validUntil ?? deal.validUntil;
-      }
+    for (const o of result.value.offers) {
+      collected.set(o.id, {
+        brand: o.brand,
+        store: o.store,
+        price: o.price,
+        sourceUrl: "https://www.kaufda.de/api/search?query=Bier",
+        offerUrl: o.offerUrl,
+        brochureId: o.brochureId,
+        validFrom: o.validFrom,
+        validUntil: o.validUntil,
+      });
     }
   }
 
@@ -417,7 +531,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   ]);
 
   const message =
-    `${deals.length} Angebot(e) von ${KAUFDA_SOURCES.length} Seiten abgerufen.` +
+    `${deals.length} Angebot(e) von ${KAUFDA_SOURCES.length} Marken-Seiten und ${brochureIds.size} Prospekten abgerufen.` +
     (errors.length ? ` (${errors.length} ohne Treffer/Fehler)` : "");
   await prisma.beerDealsConfig.upsert({
     where: { id: 1 },
