@@ -126,6 +126,7 @@ type ExtractedOffer = {
   store: string;
   price: number;
   offerUrl: string | null;
+  brochureId: string | null;
   validFrom: Date | null;
   validUntil: Date | null;
 };
@@ -156,11 +157,75 @@ function extractOffers(html: string): ExtractedOffer[] {
       store,
       price,
       offerUrl: buildOfferUrl(item),
+      brochureId: item.parentContent?.id ?? null,
+      // Diese validFrom/validUntil-Werte sind nur der grobe Gueltigkeits-
+      // zeitraum des GESAMTEN Prospekts (z.B. die ganze Woche) - dienen
+      // hier nur als Fallback, falls die praezisere Abfrage pro Prospekt
+      // (siehe fetchBrochureValidities) fehlschlaegt. Echte Tagesangebote
+      // ("nur am 29.08.") haben eine engere Gueltigkeit, die erst dort
+      // sichtbar wird (per echtem Beispiel des Nutzers bestaetigt).
       validFrom: parseDate(item.validFrom),
       validUntil: parseDate(item.validUntil),
     });
   }
   return results;
+}
+
+const KAUFDA_LEIPZIG_LAT = "51.3397";
+const KAUFDA_LEIPZIG_LNG = "12.3713";
+
+type KaufdaBrochurePagesResponse = {
+  contents?: {
+    offers?: {
+      content?: {
+        id?: string;
+        publicationProfiles?: {
+          validity?: {
+            startDate?: string;
+            endDate?: string;
+          };
+        }[];
+      };
+    }[];
+  }[];
+};
+
+/**
+ * Liefert die tatsaechliche, produktgenaue Gueltigkeit jedes Angebots in
+ * einem Prospekt. Die Kategorie-/Marken-Seiten (KAUFDA_SOURCES) liefern
+ * pro Angebot nur den groben Prospekt-Zeitraum (z.B. die ganze Woche) -
+ * echte Tagesangebote sind darueber nicht erkennbar. Dieser Endpunkt
+ * (von der kaufda.de-Prospekt-Viewer-App genutzt, per Network-Tab-Capture
+ * des Nutzers gefunden) liefert dagegen pro einzelnem Angebot ein
+ * publicationProfiles[0].validity-Feld mit der echten Gueltigkeit.
+ */
+async function fetchBrochureValidities(
+  brochureId: string
+): Promise<Map<string, { validFrom: Date | null; validUntil: Date | null }>> {
+  const url = `https://content-viewer-be.kaufda.de/v1/brochures/${brochureId}/pages?partner=kaufda_web&brochureKey=&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as KaufdaBrochurePagesResponse;
+
+  const validities = new Map<string, { validFrom: Date | null; validUntil: Date | null }>();
+  for (const page of data.contents ?? []) {
+    for (const offer of page.offers ?? []) {
+      const id = offer.content?.id;
+      const validity = offer.content?.publicationProfiles?.[0]?.validity;
+      if (!id || !validity) continue;
+      validities.set(id, {
+        validFrom: parseDate(validity.startDate),
+        validUntil: parseDate(validity.endDate),
+      });
+    }
+  }
+  return validities;
 }
 
 // Ein selbst erklaerender Bot-User-Agent wird von Prospekt-/
@@ -192,6 +257,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
       price: number;
       sourceUrl: string;
       offerUrl: string | null;
+      brochureId: string | null;
       validFrom: Date | null;
       validUntil: Date | null;
     }
@@ -210,6 +276,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
             price: o.price,
             sourceUrl: url,
             offerUrl: o.offerUrl,
+            brochureId: o.brochureId,
             validFrom: o.validFrom,
             validUntil: o.validUntil,
           });
@@ -223,8 +290,51 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     }
   }
 
+  // Praezise Tages-Gueltigkeit pro Prospekt nachladen (siehe
+  // fetchBrochureValidities) und die grobe Wochenspanne von oben damit
+  // ueberschreiben, wo verfuegbar. Prospekte werden parallel abgefragt,
+  // ein einzelner fehlschlagender Prospekt wirft den restlichen Sync
+  // nicht um - die grobe Gueltigkeit bleibt dann als Fallback stehen.
+  const brochureIds = new Set<string>();
+  for (const deal of collected.values()) {
+    if (deal.brochureId) brochureIds.add(deal.brochureId);
+  }
+  const validityResults = await Promise.allSettled(
+    Array.from(brochureIds, async (brochureId) => ({
+      brochureId,
+      validities: await fetchBrochureValidities(brochureId),
+    }))
+  );
+  for (const result of validityResults) {
+    if (result.status === "rejected") {
+      errors.push(
+        `Praezise Gueltigkeit: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
+      );
+      continue;
+    }
+    const { brochureId, validities } = result.value;
+    for (const [offerId, deal] of collected) {
+      if (deal.brochureId !== brochureId) continue;
+      const precise = validities.get(offerId);
+      if (precise) {
+        deal.validFrom = precise.validFrom ?? deal.validFrom;
+        deal.validUntil = precise.validUntil ?? deal.validUntil;
+      }
+    }
+  }
+
   const now = new Date();
-  const deals = Array.from(collected.values());
+  // brochureId war nur fuer den Abgleich mit fetchBrochureValidities noetig
+  // und ist keine Spalte in der Datenbank.
+  const deals = Array.from(collected.values()).map((deal) => ({
+    brand: deal.brand,
+    store: deal.store,
+    price: deal.price,
+    sourceUrl: deal.sourceUrl,
+    offerUrl: deal.offerUrl,
+    validFrom: deal.validFrom,
+    validUntil: deal.validUntil,
+  }));
 
   if (deals.length === 0) {
     const message =
