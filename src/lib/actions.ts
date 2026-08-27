@@ -243,10 +243,18 @@ export async function confirmAssignmentAction(
   revalidatePath("/");
 }
 
+/**
+ * "Entfernen" loescht eine Kasten-Zuweisung bewusst NICHT mehr endgueltig,
+ * sondern markiert sie nur als erledigt - ein echtes Loeschen war
+ * unwiederbringlich (kein Papierkorb, kein Verlauf) und ist einmal aus
+ * Versehen passiert. Ueber den "erledigt"-Schalter (toggleAssignmentFulfilledAction)
+ * laesst sich das jederzeit wieder auf "offen" zuruecksetzen.
+ */
 export async function deleteAssignmentAction(assignmentId: string) {
   await requireAdmin();
-  const assignment = await prisma.kastenAssignment.delete({
+  const assignment = await prisma.kastenAssignment.update({
     where: { id: assignmentId },
+    data: { fulfilled: true, fulfilledAt: new Date() },
   });
   if (assignment.matchId) revalidatePath(`/admin/matches/${assignment.matchId}`);
   revalidatePath("/admin/matches");

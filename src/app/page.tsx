@@ -35,7 +35,10 @@ export default async function HomePage() {
       orderBy: { date: "asc" },
       include: {
         attendances: { include: { player: true } },
-        assignments: { include: { player: true } },
+        // Erledigte Zuweisungen (siehe deleteAssignmentAction) sollen hier
+        // nicht mehr auftauchen - "Bringt den Kasten mit" zeigt nur, wer noch
+        // offen ist.
+        assignments: { where: { fulfilled: false }, include: { player: true } },
       },
     }),
     buildPlayerOverview(),

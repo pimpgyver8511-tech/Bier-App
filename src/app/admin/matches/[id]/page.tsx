@@ -8,6 +8,10 @@ import { AttendanceCsvImport } from "./AttendanceCsvImport";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
 import { deleteAssignmentAction } from "@/lib/actions";
 
+function isPast(date: Date): boolean {
+  return date.getTime() < Date.now();
+}
+
 function formatDateTime(d: Date) {
   return d.toLocaleString("de-DE", {
     weekday: "long",
@@ -36,6 +40,16 @@ export default async function MatchDetailPage({
     },
   });
   if (!match) notFound();
+
+  // Bei bereits gespielten Spielen markiert fulfillPastMatchAssignments()
+  // automatisch als erledigt - hier soll die Zuteilung trotzdem als
+  // Verlauf sichtbar bleiben. Bei einem noch bevorstehenden Spiel soll
+  // "Entfernen" (siehe deleteAssignmentAction) die Zeile dagegen wirklich
+  // verschwinden lassen und die Zuteilung fuer eine neue freigeben.
+  const isPastMatch = isPast(match.date);
+  const visibleAssignments = isPastMatch
+    ? match.assignments
+    : match.assignments.filter((a) => !a.fulfilled);
 
   return (
     <div className="space-y-6">
@@ -83,9 +97,9 @@ export default async function MatchDetailPage({
       <section className="card p-5 sm:p-6 space-y-4">
         <h2 className="text-lg font-bold">Kasten-Zuteilung</h2>
 
-        {match.assignments.length > 0 ? (
+        {visibleAssignments.length > 0 ? (
           <div className="space-y-2">
-            {match.assignments.map((a) => (
+            {visibleAssignments.map((a) => (
               <div
                 key={a.id}
                 className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border bg-brand-light"
