@@ -252,19 +252,26 @@ export async function confirmAssignmentAction(
 }
 
 /**
- * "Entfernen" loescht eine Kasten-Zuweisung bewusst NICHT mehr endgueltig,
- * sondern markiert sie nur als erledigt - ein echtes Loeschen war
- * unwiederbringlich (kein Papierkorb, kein Verlauf) und ist einmal aus
- * Versehen passiert. Ueber den "erledigt"-Schalter (toggleAssignmentFulfilledAction)
- * laesst sich das jederzeit wieder auf "offen" zuruecksetzen.
+ * "Entfernen" loescht eine Kasten-Zuweisung bewusst NICHT (unwiederbringlich,
+ * kein Papierkorb) und markiert sie auch NICHT als erledigt - gedacht fuer
+ * den Fall, dass ein Kasten versehentlich diesem Spiel zugeordnet wurde
+ * (z.B. falscher Spieler). Geloest wird nur die Verknuepfung zum Spiel
+ * (matchId -> null); der Kasten bleibt als offene Schuld samt Grund
+ * erhalten und kann spaeter einem anderen Spiel zugeordnet werden (siehe
+ * confirmAssignmentAction). Tatsaechlich erledigt/geliefert markiert man
+ * ausschliesslich ueber den "erledigt"-Schalter in der Kasten-Historie
+ * (toggleAssignmentFulfilledAction).
  */
 export async function deleteAssignmentAction(assignmentId: string) {
   await requireAdmin();
-  const assignment = await prisma.kastenAssignment.update({
+  const existing = await prisma.kastenAssignment.findUniqueOrThrow({
     where: { id: assignmentId },
-    data: { fulfilled: true, fulfilledAt: new Date() },
   });
-  if (assignment.matchId) revalidatePath(`/admin/matches/${assignment.matchId}`);
+  await prisma.kastenAssignment.update({
+    where: { id: assignmentId },
+    data: { matchId: null },
+  });
+  if (existing.matchId) revalidatePath(`/admin/matches/${existing.matchId}`);
   revalidatePath("/admin/matches");
   revalidatePath("/admin/history");
   revalidatePath("/");

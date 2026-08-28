@@ -43,9 +43,12 @@ export default async function MatchDetailPage({
 
   // Bei bereits gespielten Spielen markiert fulfillPastMatchAssignments()
   // automatisch als erledigt - hier soll die Zuteilung trotzdem als
-  // Verlauf sichtbar bleiben. Bei einem noch bevorstehenden Spiel soll
-  // "Entfernen" (siehe deleteAssignmentAction) die Zeile dagegen wirklich
-  // verschwinden lassen und die Zuteilung fuer eine neue freigeben.
+  // Verlauf sichtbar bleiben. Bei einem noch bevorstehenden Spiel sollen
+  // vorab schon als erledigt markierte Zuweisungen dagegen ausgeblendet
+  // werden, damit die Zuteilung fuer eine neue freigegeben wird
+  // ("Entfernen" selbst loest ohnehin nur die Verknuepfung zum Spiel,
+  // siehe deleteAssignmentAction, und die Zeile verschwindet dadurch schon
+  // von selbst aus match.assignments).
   const isPastMatch = isPast(match.date);
   const visibleAssignments = isPastMatch
     ? match.assignments

@@ -35,9 +35,9 @@ export default async function HomePage() {
       orderBy: { date: "asc" },
       include: {
         attendances: { include: { player: true } },
-        // Erledigte Zuweisungen (siehe deleteAssignmentAction) sollen hier
-        // nicht mehr auftauchen - "Bringt den Kasten mit" zeigt nur, wer noch
-        // offen ist.
+        // "Bringt den Kasten mit" zeigt nur wer noch offen ist - bereits
+        // erledigte Zuweisungen (z.B. per erledigt-Schalter in der Kasten-
+        // Historie vorab bestaetigt) sollen hier nicht mehr auftauchen.
         assignments: { where: { fulfilled: false }, include: { player: true } },
       },
     }),
