@@ -197,10 +197,11 @@ export async function importAttendanceCsvAction(matchId: string, formData: FormD
 
 export async function confirmAssignmentAction(
   matchId: string,
-  playerIds: string[],
+  counts: Record<string, number>,
   reason: string
 ) {
   await requireAdmin();
+  const playerIds = Object.keys(counts).filter((id) => counts[id] > 0);
   // Ein Kasten kann nur zugeteilt werden, wenn der Spieler fuer dieses Spiel
   // auch tatsaechlich zugesagt hat.
   const attendances = await prisma.attendance.findMany({
@@ -208,29 +209,36 @@ export async function confirmAssignmentAction(
     select: { playerId: true },
   });
   const attendingIds = new Set(attendances.map((a) => a.playerId));
-  const eligiblePlayerIds = playerIds.filter((id) => attendingIds.has(id));
+  const eligibleEntries = playerIds
+    .filter((id) => attendingIds.has(id))
+    .map((id) => ({ playerId: id, count: Math.max(1, Math.floor(counts[id])) }));
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {
-    for (const playerId of eligiblePlayerIds) {
-      // Hat der Spieler schon einen wirklich offenen (unerfuellten, keinem
-      // kuenftigen Spiel zugeordneten) Kasten, wird der diesem Spiel
-      // zugeordnet, statt einen zusaetzlichen neuen anzulegen - er baut damit
-      // eine bestehende Schuld ab, statt eine weitere aufzubauen.
-      const existingPending = await tx.kastenAssignment.findFirst({
+    for (const { playerId, count } of eligibleEntries) {
+      // Hat der Spieler bereits wirklich offene (unerfuellte, keinem
+      // kuenftigen Spiel zugeordnete) Kaesten, werden davon bis zu "count"
+      // (aelteste zuerst) diesem Spiel zugeordnet, statt zusaetzliche neue
+      // anzulegen - so kann er z.B. gleich mehrere bestehende Schulden auf
+      // einmal abbauen, statt pro Zuteilung nur eine. Reicht die Anzahl der
+      // wirklich offenen Kaesten nicht aus, werden fuer den Rest neue
+      // Zuweisungen angelegt.
+      const existingPending = await tx.kastenAssignment.findMany({
         where: {
           playerId,
           fulfilled: false,
           OR: [{ matchId: null }, { match: { date: { lte: now } } }],
         },
         orderBy: { createdAt: "asc" },
+        take: count,
       });
-      if (existingPending) {
+      for (const existing of existingPending) {
         await tx.kastenAssignment.update({
-          where: { id: existingPending.id },
+          where: { id: existing.id },
           data: { matchId },
         });
-      } else {
+      }
+      for (let i = existingPending.length; i < count; i++) {
         await tx.kastenAssignment.create({
           data: { matchId, playerId, reason: reason || null },
         });

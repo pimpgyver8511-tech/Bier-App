@@ -7,7 +7,10 @@ import type { AssignmentSuggestion } from "@/lib/kasten";
 export function AssignmentPicker({ matchId }: { matchId: string }) {
   const [isPending, startTransition] = useTransition();
   const [suggestion, setSuggestion] = useState<AssignmentSuggestion | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Map statt Set, damit ein Spieler mit mehreren wirklich offenen Kaesten
+  // (z.B. 3 offen) gleich mehrere davon auf einmal diesem Spiel zuordnen
+  // kann, statt nur einen pro Zuteilung - Wert ist die gewuenschte Anzahl.
+  const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
@@ -15,26 +18,36 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
     startTransition(async () => {
       const result = await getSuggestionAction(matchId);
       setSuggestion(result);
-      setSelected(new Set(result.suggested.map((s) => s.playerId)));
+      setCounts(new Map(result.suggested.map((s) => [s.playerId, 1])));
     });
   }
 
   function toggle(playerId: string, attending: boolean) {
     if (!attending) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
+    setCounts((prev) => {
+      const next = new Map(prev);
       if (next.has(playerId)) next.delete(playerId);
-      else next.add(playerId);
+      else next.set(playerId, 1);
+      return next;
+    });
+  }
+
+  function setCount(playerId: string, count: number) {
+    setCounts((prev) => {
+      const next = new Map(prev);
+      next.set(playerId, Math.max(1, Math.floor(count) || 1));
       return next;
     });
   }
 
   function confirm() {
     startTransition(async () => {
-      await confirmAssignmentAction(matchId, Array.from(selected), reason);
+      await confirmAssignmentAction(matchId, Object.fromEntries(counts), reason);
       setConfirmed(true);
     });
   }
+
+  const totalKaesten = Array.from(counts.values()).reduce((sum, n) => sum + n, 0);
 
   if (confirmed) {
     return (
@@ -66,19 +79,22 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
             key={c.playerId}
             className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg border ${
               !c.attending ? "border-border opacity-40 cursor-not-allowed" : c.eligible ? "border-border" : "border-border opacity-50"
-            } ${selected.has(c.playerId) ? "bg-brand-light border-brand" : "bg-white"}`}
+            } ${counts.has(c.playerId) ? "bg-brand-light border-brand" : "bg-white"}`}
           >
             <span className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={selected.has(c.playerId)}
+                checked={counts.has(c.playerId)}
                 disabled={!c.attending}
                 onChange={() => toggle(c.playerId, c.attending)}
                 className="w-4 h-4"
               />
               <span className="font-medium">{c.name}</span>
+              {c.pendingCount > 1 && (
+                <span className="text-xs text-muted">({c.pendingCount} offen)</span>
+              )}
             </span>
-            <span className="text-xs text-muted text-right">
+            <span className="flex items-center gap-2 text-xs text-muted text-right">
               {c.reasonBlocked ? (
                 <span className="badge badge-gray">{c.reasonBlocked}</span>
               ) : (
@@ -89,6 +105,16 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
                       ? `vor ${c.daysSinceLast} Tagen`
                       : "kürzlich zugeteilt"}
                 </span>
+              )}
+              {counts.has(c.playerId) && c.pendingCount > 1 && (
+                <input
+                  type="number"
+                  min={1}
+                  value={counts.get(c.playerId)}
+                  onChange={(e) => setCount(c.playerId, Number(e.target.value))}
+                  title={`Anzahl Kästen, die ${c.name} zu diesem Spiel mitbringt`}
+                  className="input w-14 py-0.5 px-1.5 text-center"
+                />
               )}
             </span>
           </label>
@@ -111,10 +137,11 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
       <button
         type="button"
         onClick={confirm}
-        disabled={isPending || selected.size === 0}
+        disabled={isPending || counts.size === 0}
         className="btn btn-primary"
       >
-        Zuteilung bestätigen ({selected.size} ausgewählt)
+        Zuteilung bestätigen ({totalKaesten} {totalKaesten === 1 ? "Kasten" : "Kästen"} für{" "}
+        {counts.size} Spieler)
       </button>
     </div>
   );
