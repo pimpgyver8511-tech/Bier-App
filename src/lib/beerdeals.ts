@@ -465,14 +465,24 @@ type HitLeaflet = {
 };
 
 /**
- * Das "data-leaflet"-Attribut ist JSON, das per HTML-Entities (u.a.
- * "&quot;") in ein HTML-Attribut eingebettet ist - vor dem JSON.parse
- * muessen diese daher zurueckuebersetzt werden.
+ * Das "data-leaflet"-Attribut ist JSON, das als HTML-Attribut ausgegeben
+ * wird. Der Server escaped dabei NICHT nur Anfuehrungszeichen, sondern
+ * praktisch jedes nicht-alphanumerische Zeichen als numerische Entity
+ * (z.B. "{" als "&#x7B;", ":" als "&#x3A;", "/" als "&#x2F;") - per
+ * echtem Seitenquelltext des Nutzers bestaetigt. Nur Anfuehrungszeichen
+ * werden dabei als benannte Entity ("&quot;") ausgegeben. Ein zuvor
+ * gespeicherter Snapshot der Seite (Browser "Seite speichern unter") hatte
+ * dagegen NUR die Anfuehrungszeichen escaped, weil der Browser beim
+ * Serialisieren des bereits geparsten DOM alle anderen Zeichen wieder als
+ * Klartext ausgibt - deshalb muss hier zusaetzlich generisch auf
+ * numerische Entities (hex und dezimal) dekodiert werden.
  */
 function decodeHtmlEntities(value: string): string {
   return value
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
     .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
@@ -490,12 +500,13 @@ type ExtractHitLeafletsResult = {
 
 function extractHitLeaflets(html: string): ExtractHitLeafletsResult {
   const leaflets: HitLeaflet[] = [];
-  // Ein echter Browser normalisiert beim Speichern einer Seite alle
-  // Attribut-Anfuehrungszeichen auf doppelte ("...") - die tatsaechliche
-  // Server-Antwort kann fuer dasselbe Attribut aber einfache ('...')
-  // verwenden. Deshalb werden hier beide Varianten akzeptiert (per
-  // Rueckverweis \1 auf dasselbe Anfuehrungszeichen am Ende).
-  const regex = /data-leaflet=(["'])(\{.*?\})\1/g;
+  // Der JSON-Inhalt ist vollstaendig entity-escaped (siehe decodeHtmlEntities()
+  // oben) - ein literales "{" kommt im Rohtext also NICHT vor, deshalb darf
+  // hier nicht danach gesucht werden. Stattdessen wird einfach alles bis zum
+  // (echten, unescapten) schliessenden Anfuehrungszeichen erfasst; einfache
+  // ('...') und doppelte ("...") Anfuehrungszeichen werden beide akzeptiert
+  // (per Rueckverweis \1 auf dasselbe Anfuehrungszeichen am Ende).
+  const regex = /data-leaflet=(["'])([\s\S]*?)\1/g;
   let match: RegExpExecArray | null;
   let rawAttributeCount = 0;
   while ((match = regex.exec(html))) {
