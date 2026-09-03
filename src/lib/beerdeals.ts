@@ -478,18 +478,35 @@ function decodeHtmlEntities(value: string): string {
     .replace(/&amp;/g, "&");
 }
 
-function extractHitLeaflets(html: string): HitLeaflet[] {
-  const results: HitLeaflet[] = [];
-  const regex = /data-leaflet="(\{.*?\})"/g;
+type ExtractHitLeafletsResult = {
+  leaflets: HitLeaflet[];
+  // Nur fuer die Sync-Diagnose gedacht: unterscheidet "Attribut kommt auf
+  // der Seite gar nicht vor" (rawAttributeCount 0) von "Attribut gefunden,
+  // aber JSON.parse ist fuer jedes Vorkommen fehlgeschlagen" (rawAttributeCount
+  // > 0, aber leaflets.length 0) - beides sah in der Sync-Meldung sonst
+  // gleich aus (0 Angebote gefunden).
+  rawAttributeCount: number;
+};
+
+function extractHitLeaflets(html: string): ExtractHitLeafletsResult {
+  const leaflets: HitLeaflet[] = [];
+  // Ein echter Browser normalisiert beim Speichern einer Seite alle
+  // Attribut-Anfuehrungszeichen auf doppelte ("...") - die tatsaechliche
+  // Server-Antwort kann fuer dasselbe Attribut aber einfache ('...')
+  // verwenden. Deshalb werden hier beide Varianten akzeptiert (per
+  // Rueckverweis \1 auf dasselbe Anfuehrungszeichen am Ende).
+  const regex = /data-leaflet=(["'])(\{.*?\})\1/g;
   let match: RegExpExecArray | null;
+  let rawAttributeCount = 0;
   while ((match = regex.exec(html))) {
+    rawAttributeCount++;
     try {
-      results.push(JSON.parse(decodeHtmlEntities(match[1])) as HitLeaflet);
+      leaflets.push(JSON.parse(decodeHtmlEntities(match[2])) as HitLeaflet);
     } catch {
       // Ein einzelnes fehlerhaftes Angebot soll den Rest der Seite nicht verwerfen.
     }
   }
-  return results;
+  return { leaflets, rawAttributeCount };
 }
 
 function normalizeForBrandMatch(value: string): string {
@@ -525,16 +542,18 @@ function looksLikeBeer(headline: string | undefined): boolean {
 type ExtractHitOffersResult = {
   offers: ExtractedOffer[];
   // Nur fuer die Diagnose eines leeren Ergebnisses gedacht (Sync-Meldung) -
-  // zeigt, auf welcher Stufe der Pipeline (Attribut nicht gefunden/geparst,
-  // kein voller Kasten, keine erkannte Biermarke) die Angebote verloren
-  // gehen, ohne dafuer live in die Produktions-Logs schauen zu muessen.
+  // zeigt, auf welcher Stufe der Pipeline (Attribut nicht gefunden, Attribut
+  // gefunden aber nicht geparst, kein voller Kasten, keine erkannte
+  // Biermarke) die Angebote verloren gehen, ohne dafuer live in die
+  // Produktions-Logs schauen zu muessen.
+  rawAttributeCount: number;
   leafletCount: number;
   fullCaseCount: number;
 };
 
 function extractHitOffers(html: string): ExtractHitOffersResult {
   const results: ExtractedOffer[] = [];
-  const leaflets = extractHitLeaflets(html);
+  const { leaflets, rawAttributeCount } = extractHitLeaflets(html);
   let fullCaseCount = 0;
   for (const leaflet of leaflets) {
     if (!isFullCase(leaflet.text)) continue;
@@ -555,7 +574,7 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
       validUntil: parseDate(leaflet.validTo),
     });
   }
-  return { offers: results, leafletCount: leaflets.length, fullCaseCount };
+  return { offers: results, rawAttributeCount, leafletCount: leaflets.length, fullCaseCount };
 }
 
 export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
@@ -632,7 +651,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   let hitOfferCount = 0;
   let hitError: string | null = null;
   try {
-    const { offers, htmlLength, leafletCount, fullCaseCount } = await hitPromise;
+    const { offers, htmlLength, rawAttributeCount, leafletCount, fullCaseCount } = await hitPromise;
     hitOfferCount = offers.length;
     for (const o of offers) {
       if (!collected.has(o.id)) {
@@ -650,8 +669,8 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     }
     if (offers.length === 0) {
       hitError =
-        `keine Treffer (Antwort ${htmlLength} Zeichen, ${leafletCount} Angebote gefunden, ` +
-        `${fullCaseCount} davon volle Kästen, 0 als Bier erkannt)`;
+        `keine Treffer (Antwort ${htmlLength} Zeichen, ${rawAttributeCount}x data-leaflet-Attribut, ` +
+        `${leafletCount} davon geparst, ${fullCaseCount} volle Kästen, 0 als Bier erkannt)`;
     }
   } catch (err) {
     hitError = err instanceof Error ? err.message : String(err);
