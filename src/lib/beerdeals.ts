@@ -554,14 +554,19 @@ function looksLikeBeer(headline: string | undefined): boolean {
  * HIT formuliert Angebote fuer mehrere Sorten/Marken einer Aktion oft als
  * "<Marke A> <Zusatz> oder <Marke B/Zusatz>" (z.B. "Oettinger Pils oder
  * Export*", "Heineken oder Gösser Natur Radler" - per Nutzer-Screenshot
- * bestaetigt). Fuer die Anzeige soll dort nur der/die tatsaechliche(n)
- * Markenname(n) stehen, ohne das Wort "oder" und ohne die Sorten-Zusaetze
- * (Pils, Export, Weissbier, Natur Radler, ...). Dazu wird der Titel an
- * "oder" aufgetrennt und je Teil nach einem bekannten Markennamen gesucht
- * (1-3 Woerter, laengste Uebereinstimmung zuerst) - der erkannte Ausschnitt
- * behaelt dabei die Original-Schreibweise (inkl. Umlaute) aus dem Titel.
+ * bestaetigt). Das "oder" bedeutet dabei nur, dass beide Sorten zum
+ * gleichen Preis gelten - es sind trotzdem eigenstaendige Marken, die
+ * jeweils fuer sich in der Marken-Uebersicht auftauchen sollen (z.B. damit
+ * ein Heineken-Angebot bei HIT nicht durch die Kombination mit Gösser aus
+ * einer markenspezifischen Ansicht herausfaellt). Extrahiert werden daher
+ * ALLE tatsaechlichen Markennamen aus dem Titel (ohne die Sorten-Zusaetze
+ * wie Pils, Export, Weissbier, Natur Radler, ...), statt sie zu einem
+ * String zusammenzufassen. Dazu wird der Titel an "oder" aufgetrennt und
+ * je Teil nach einem bekannten Markennamen gesucht (1-3 Woerter, laengste
+ * Uebereinstimmung zuerst) - der erkannte Ausschnitt behaelt dabei die
+ * Original-Schreibweise (inkl. Umlaute) aus dem Titel.
  */
-function cleanHitBrandName(headline: string): string {
+function extractHitBrandNames(headline: string): string[] {
   const segments = headline.split(/\s+oder\s+/i);
   const brands: string[] = [];
   for (const segment of segments) {
@@ -579,7 +584,7 @@ function cleanHitBrandName(headline: string): string {
     }
     if (found && !brands.includes(found)) brands.push(found);
   }
-  return brands.length > 0 ? brands.join(" / ") : headline.trim();
+  return brands.length > 0 ? brands : [headline.trim()];
 }
 
 type ExtractHitOffersResult = {
@@ -606,16 +611,22 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
     if (!leaflet.id || !leaflet.headline || !Number.isFinite(price)) continue;
     // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
     if (price < 6 || price > 40) continue;
-    results.push({
-      id: `hit-${leaflet.id}`,
-      brand: cleanHitBrandName(leaflet.headline),
-      store: HIT_STORE_NAME,
-      price,
-      offerUrl: leaflet.url ?? null,
-      brochureId: null,
-      validFrom: parseDate(leaflet.validFrom),
-      validUntil: parseDate(leaflet.validTo),
-    });
+    // Ein Angebot mit "oder" (z.B. "Heineken oder Gösser") wird zu mehreren
+    // eigenstaendigen Angeboten (eines je Marke) statt zu einem einzigen
+    // kombinierten Eintrag - siehe Kommentar an extractHitBrandNames().
+    const brandNames = extractHitBrandNames(leaflet.headline);
+    for (let i = 0; i < brandNames.length; i++) {
+      results.push({
+        id: brandNames.length > 1 ? `hit-${leaflet.id}-${i}` : `hit-${leaflet.id}`,
+        brand: brandNames[i],
+        store: HIT_STORE_NAME,
+        price,
+        offerUrl: leaflet.url ?? null,
+        brochureId: null,
+        validFrom: parseDate(leaflet.validFrom),
+        validUntil: parseDate(leaflet.validTo),
+      });
+    }
   }
   return { offers: results, rawAttributeCount, leafletCount: leaflets.length, fullCaseCount };
 }
