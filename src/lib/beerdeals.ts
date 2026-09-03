@@ -610,7 +610,14 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     }
   }
 
+  // Der HIT-Fehler wird zusaetzlich separat gehalten (statt nur in "errors"),
+  // damit er - anders als die vielen erwartbaren "keine Treffer"-Meldungen
+  // einzelner kaufda.de-Marken-Seiten - immer sichtbar in der Sync-Meldung
+  // auftaucht und sich ein Fehlschlag dieser neuen Quelle direkt in der
+  // Admin-Oberflaeche diagnostizieren laesst, statt nur in der Zaehlung
+  // "ohne Treffer/Fehler" unterzugehen.
   let hitOfferCount = 0;
+  let hitError: string | null = null;
   try {
     const { offers, htmlLength } = await hitPromise;
     hitOfferCount = offers.length;
@@ -629,11 +636,12 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
       }
     }
     if (offers.length === 0) {
-      errors.push(`${HIT_LEIPZIG_OFFERS_URL}: keine Treffer (Antwort ${htmlLength} Zeichen)`);
+      hitError = `keine Treffer (Antwort ${htmlLength} Zeichen)`;
     }
   } catch (err) {
-    errors.push(`${HIT_LEIPZIG_OFFERS_URL}: ${err instanceof Error ? err.message : String(err)}`);
+    hitError = err instanceof Error ? err.message : String(err);
   }
+  if (hitError) errors.push(`${HIT_LEIPZIG_OFFERS_URL}: ${hitError}`);
 
   // Markenunabhaengige Vollstaendigkeits-Ergaenzung: die Markenliste oben
   // erfasst nur Haendler/Marken mit eigener kaufda.de-Seite. Zusaetzlich
@@ -731,7 +739,8 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
 
   const message =
     `${deals.length} Angebot(e) von ${KAUFDA_SOURCES.length} Marken-Seiten, ${brochureIds.size} Prospekten und ${hitOfferCount} HIT-Angeboten abgerufen.` +
-    (errors.length ? ` (${errors.length} ohne Treffer/Fehler)` : "");
+    (errors.length ? ` (${errors.length} ohne Treffer/Fehler)` : "") +
+    (hitError ? ` HIT: ${hitError}.` : "");
   await prisma.beerDealsConfig.upsert({
     where: { id: 1 },
     update: { lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message },
