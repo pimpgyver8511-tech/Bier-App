@@ -522,10 +522,23 @@ function looksLikeBeer(headline: string | undefined): boolean {
   return BEER_BRAND_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
-function extractHitOffers(html: string): ExtractedOffer[] {
+type ExtractHitOffersResult = {
+  offers: ExtractedOffer[];
+  // Nur fuer die Diagnose eines leeren Ergebnisses gedacht (Sync-Meldung) -
+  // zeigt, auf welcher Stufe der Pipeline (Attribut nicht gefunden/geparst,
+  // kein voller Kasten, keine erkannte Biermarke) die Angebote verloren
+  // gehen, ohne dafuer live in die Produktions-Logs schauen zu muessen.
+  leafletCount: number;
+  fullCaseCount: number;
+};
+
+function extractHitOffers(html: string): ExtractHitOffersResult {
   const results: ExtractedOffer[] = [];
-  for (const leaflet of extractHitLeaflets(html)) {
+  const leaflets = extractHitLeaflets(html);
+  let fullCaseCount = 0;
+  for (const leaflet of leaflets) {
     if (!isFullCase(leaflet.text)) continue;
+    fullCaseCount++;
     if (!looksLikeBeer(leaflet.headline)) continue;
     const price = Number(leaflet.price);
     if (!leaflet.id || !leaflet.headline || !Number.isFinite(price)) continue;
@@ -542,7 +555,7 @@ function extractHitOffers(html: string): ExtractedOffer[] {
       validUntil: parseDate(leaflet.validTo),
     });
   }
-  return results;
+  return { offers: results, leafletCount: leaflets.length, fullCaseCount };
 }
 
 export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
@@ -570,7 +583,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   // ausgewertet) - ein Fehlschlag soll den Rest des Syncs nicht blockieren.
   const hitPromise = (async () => {
     const html = await fetchText(HIT_LEIPZIG_OFFERS_URL);
-    return { offers: extractHitOffers(html), htmlLength: html.length };
+    return { ...extractHitOffers(html), htmlLength: html.length };
   })();
 
   // Die Quellseiten werden parallel abgefragt (inzwischen knapp 50 Marken-
@@ -619,7 +632,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   let hitOfferCount = 0;
   let hitError: string | null = null;
   try {
-    const { offers, htmlLength } = await hitPromise;
+    const { offers, htmlLength, leafletCount, fullCaseCount } = await hitPromise;
     hitOfferCount = offers.length;
     for (const o of offers) {
       if (!collected.has(o.id)) {
@@ -636,7 +649,9 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
       }
     }
     if (offers.length === 0) {
-      hitError = `keine Treffer (Antwort ${htmlLength} Zeichen)`;
+      hitError =
+        `keine Treffer (Antwort ${htmlLength} Zeichen, ${leafletCount} Angebote gefunden, ` +
+        `${fullCaseCount} davon volle Kästen, 0 als Bier erkannt)`;
     }
   } catch (err) {
     hitError = err instanceof Error ? err.message : String(err);
