@@ -441,6 +441,110 @@ async function fetchText(url: string): Promise<string> {
   return res.text();
 }
 
+/**
+ * HIT (hit.de) betreibt - anders als kaufda.de - keine SEO-Marken-/
+ * Kategorieseiten. Die eigene Wochenprospekt-Seite je Markt bettet jedes
+ * Angebot stattdessen direkt als JSON in ein "data-leaflet"-Attribut der
+ * jeweiligen Angebots-Kachel ein - per echtem Seitenquelltext des Nutzers
+ * bestaetigt (https://www.hit.de/maerkte/leipzig/angebote). Der Query-
+ * Parameter "kategorien=1803" entspricht dabei der Kategorie "Getraenke"
+ * (bestaetigt durch das "category":{"id":1803,"name":"Getränke"} in den
+ * echten Angebotsdaten) und reduziert die Seite auf Getraenke-Angebote.
+ */
+const HIT_LEIPZIG_OFFERS_URL = "https://www.hit.de/maerkte/leipzig/angebote?kategorien=1803";
+const HIT_STORE_NAME = "HIT";
+
+type HitLeaflet = {
+  id?: number;
+  headline?: string;
+  text?: string;
+  price?: string;
+  validFrom?: string;
+  validTo?: string;
+  url?: string;
+};
+
+/**
+ * Das "data-leaflet"-Attribut ist JSON, das per HTML-Entities (u.a.
+ * "&quot;") in ein HTML-Attribut eingebettet ist - vor dem JSON.parse
+ * muessen diese daher zurueckuebersetzt werden.
+ */
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function extractHitLeaflets(html: string): HitLeaflet[] {
+  const results: HitLeaflet[] = [];
+  const regex = /data-leaflet="(\{.*?\})"/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html))) {
+    try {
+      results.push(JSON.parse(decodeHtmlEntities(match[1])) as HitLeaflet);
+    } catch {
+      // Ein einzelnes fehlerhaftes Angebot soll den Rest der Seite nicht verwerfen.
+    }
+  }
+  return results;
+}
+
+function normalizeForBrandMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * HIT liefert keine feinere Bier-Kategorie als "Getraenke" - diese enthaelt
+ * auch Cola, Limonade, Wasser etc. Da KAUFDA_SOURCES bereits eine
+ * kuratierte Liste an Bier-Markennamen ist, wird sie hier wiederverwendet,
+ * um Getraenke-Angebote auf Bier einzugrenzen. "Sternburg" ist zusaetzlich
+ * aufgenommen, da diese Marke laut Kommentar oben an KAUFDA_SOURCES keine
+ * eigene kaufda.de-Seite hat, aber auf hit.de real als Bierkasten-Angebot
+ * bestaetigt wurde.
+ */
+const BEER_BRAND_KEYWORDS = [
+  ...KAUFDA_SOURCES.map((url) => url.slice(url.lastIndexOf("/") + 1)),
+  "Sternburg",
+].map(normalizeForBrandMatch);
+
+function looksLikeBeer(headline: string | undefined): boolean {
+  if (!headline) return false;
+  const normalized = normalizeForBrandMatch(headline);
+  return BEER_BRAND_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function extractHitOffers(html: string): ExtractedOffer[] {
+  const results: ExtractedOffer[] = [];
+  for (const leaflet of extractHitLeaflets(html)) {
+    if (!isFullCase(leaflet.text)) continue;
+    if (!looksLikeBeer(leaflet.headline)) continue;
+    const price = Number(leaflet.price);
+    if (!leaflet.id || !leaflet.headline || !Number.isFinite(price)) continue;
+    // Plausibilitaetsfilter gegen offensichtliche Datenfehler.
+    if (price < 6 || price > 40) continue;
+    results.push({
+      id: `hit-${leaflet.id}`,
+      brand: leaflet.headline.trim(),
+      store: HIT_STORE_NAME,
+      price,
+      offerUrl: leaflet.url ?? null,
+      brochureId: null,
+      validFrom: parseDate(leaflet.validFrom),
+      validUntil: parseDate(leaflet.validTo),
+    });
+  }
+  return results;
+}
+
 export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   // Mehrere Quellseiten (allgemeine Bier-Seite + Marken-Seiten) koennen
   // dasselbe Angebot liefern - Dedupe ueber die von kaufda.de vergebene
@@ -460,6 +564,14 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     }
   >();
   const errors: string[] = [];
+
+  // hit.de wird als eigene Quelle parallel zu den kaufda.de-Marken-Seiten
+  // abgefragt (Promise startet bereits hier, wird aber erst weiter unten
+  // ausgewertet) - ein Fehlschlag soll den Rest des Syncs nicht blockieren.
+  const hitPromise = (async () => {
+    const html = await fetchText(HIT_LEIPZIG_OFFERS_URL);
+    return { offers: extractHitOffers(html), htmlLength: html.length };
+  })();
 
   // Die Quellseiten werden parallel abgefragt (inzwischen knapp 50 Marken-
   // Seiten) - sequentiell wuerde das den Sync unnoetig in die Laenge
@@ -496,6 +608,31 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     if (offers.length === 0) {
       errors.push(`${url}: keine Treffer (Antwort ${htmlLength} Zeichen)`);
     }
+  }
+
+  let hitOfferCount = 0;
+  try {
+    const { offers, htmlLength } = await hitPromise;
+    hitOfferCount = offers.length;
+    for (const o of offers) {
+      if (!collected.has(o.id)) {
+        collected.set(o.id, {
+          brand: o.brand,
+          store: o.store,
+          price: o.price,
+          sourceUrl: HIT_LEIPZIG_OFFERS_URL,
+          offerUrl: o.offerUrl,
+          brochureId: o.brochureId,
+          validFrom: o.validFrom,
+          validUntil: o.validUntil,
+        });
+      }
+    }
+    if (offers.length === 0) {
+      errors.push(`${HIT_LEIPZIG_OFFERS_URL}: keine Treffer (Antwort ${htmlLength} Zeichen)`);
+    }
+  } catch (err) {
+    errors.push(`${HIT_LEIPZIG_OFFERS_URL}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Markenunabhaengige Vollstaendigkeits-Ergaenzung: die Markenliste oben
@@ -593,7 +730,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
   ]);
 
   const message =
-    `${deals.length} Angebot(e) von ${KAUFDA_SOURCES.length} Marken-Seiten und ${brochureIds.size} Prospekten abgerufen.` +
+    `${deals.length} Angebot(e) von ${KAUFDA_SOURCES.length} Marken-Seiten, ${brochureIds.size} Prospekten und ${hitOfferCount} HIT-Angeboten abgerufen.` +
     (errors.length ? ` (${errors.length} ohne Treffer/Fehler)` : "");
   await prisma.beerDealsConfig.upsert({
     where: { id: 1 },
