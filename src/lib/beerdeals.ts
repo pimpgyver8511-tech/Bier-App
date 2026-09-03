@@ -550,6 +550,38 @@ function looksLikeBeer(headline: string | undefined): boolean {
   return BEER_BRAND_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
+/**
+ * HIT formuliert Angebote fuer mehrere Sorten/Marken einer Aktion oft als
+ * "<Marke A> <Zusatz> oder <Marke B/Zusatz>" (z.B. "Oettinger Pils oder
+ * Export*", "Heineken oder Gösser Natur Radler" - per Nutzer-Screenshot
+ * bestaetigt). Fuer die Anzeige soll dort nur der/die tatsaechliche(n)
+ * Markenname(n) stehen, ohne das Wort "oder" und ohne die Sorten-Zusaetze
+ * (Pils, Export, Weissbier, Natur Radler, ...). Dazu wird der Titel an
+ * "oder" aufgetrennt und je Teil nach einem bekannten Markennamen gesucht
+ * (1-3 Woerter, laengste Uebereinstimmung zuerst) - der erkannte Ausschnitt
+ * behaelt dabei die Original-Schreibweise (inkl. Umlaute) aus dem Titel.
+ */
+function cleanHitBrandName(headline: string): string {
+  const segments = headline.split(/\s+oder\s+/i);
+  const brands: string[] = [];
+  for (const segment of segments) {
+    const words = segment.trim().split(/\s+/).filter(Boolean);
+    let found: string | null = null;
+    for (let start = 0; start < words.length && !found; start++) {
+      const maxWindow = Math.min(3, words.length - start);
+      for (let windowSize = maxWindow; windowSize >= 1; windowSize--) {
+        const candidate = words.slice(start, start + windowSize).join(" ");
+        if (BEER_BRAND_KEYWORDS.includes(normalizeForBrandMatch(candidate))) {
+          found = candidate;
+          break;
+        }
+      }
+    }
+    if (found && !brands.includes(found)) brands.push(found);
+  }
+  return brands.length > 0 ? brands.join(" / ") : headline.trim();
+}
+
 type ExtractHitOffersResult = {
   offers: ExtractedOffer[];
   // Nur fuer die Diagnose eines leeren Ergebnisses gedacht (Sync-Meldung) -
@@ -576,7 +608,7 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
     if (price < 6 || price > 40) continue;
     results.push({
       id: `hit-${leaflet.id}`,
-      brand: leaflet.headline.trim(),
+      brand: cleanHitBrandName(leaflet.headline),
       store: HIT_STORE_NAME,
       price,
       offerUrl: leaflet.url ?? null,
