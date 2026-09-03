@@ -400,11 +400,20 @@ type KaufdaSearchResponse = {
  * egal ob die Marke eine eigene kaufda.de-Seite hat oder nicht. Bricht
  * ab, sobald eine Seite weniger Treffer liefert als angefragt (Ende der
  * Ergebnisse) oder ein Abruf fehlschlaegt.
+ *
+ * Die Ergebnis-Antwort hat kein sichtbares Gesamtanzahl-Feld - das
+ * Abbruchkriterium oben (Seite liefert weniger als "limit") ist daher der
+ * einzig verlaessliche Weg, das echte Ende zu erkennen. Die
+ * Obergrenze unten ist nur ein Sicherheitsnetz gegen eine Endlosschleife,
+ * falls die API doch nie mit einer kuerzeren Seite antwortet, und war
+ * zunaechst zu niedrig (500) angesetzt: ein echtes HIT-Prospekt mit
+ * Krombacher-Angebot (per Nutzer-Beispiel bestaetigt) lag erst ganz am
+ * Ende der Scroll-Ergebnisse und wurde durch dieses Limit abgeschnitten.
  */
 async function searchBierBrochureIds(): Promise<Set<string>> {
   const ids = new Set<string>();
   const limit = 24;
-  for (let offset = 0; offset < 500; offset += limit) {
+  for (let offset = 0; offset < 5000; offset += limit) {
     const url = `https://www.kaufda.de/api/search?query=Bier&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}&offset=${offset}&limit=${limit}`;
     const res = await fetch(url, {
       headers: { "User-Agent": KAUFDA_USER_AGENT, Accept: "application/json" },
