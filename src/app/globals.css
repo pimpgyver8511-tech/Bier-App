@@ -15,6 +15,7 @@
   --danger: #c0392b;
   --info: #dbe9f5;
   --info-dark: #2f6690;
+  --highlight-bg: #fbeed2;
 }
 
 @theme inline {
@@ -162,4 +163,41 @@ body {
     border-radius: 999px;
     opacity: 0.6;
   }
+}
+
+/*
+ * "Kabine"-Optik-Vorschau (siehe DesignPreviewToggle.tsx) - nur aktiv
+ * innerhalb eines Containers mit data-theme="kabine" (aktuell nur die
+ * Startseite, nur fuer den Admin, siehe page.tsx). Ueberschreibt
+ * ausschliesslich die oben in :root definierten Variablen - .card, .btn,
+ * .badge etc. reagieren dadurch automatisch, ohne dass hier etwas
+ * dupliziert werden muss.
+ */
+[data-theme="kabine"] {
+  --background: #16241c;
+  --surface: #1e332a;
+  --foreground: #f1ede1;
+  --muted: #9fb3a6;
+  --border: #33463a;
+
+  --brand: #7ecf7f;
+  --brand-dark: #5fae61;
+  --brand-light: #24402f;
+  --gold: #e8c468;
+  --gold-dark: #c9a13f;
+  --danger: #e2776a;
+  --info: #24402f;
+  --info-dark: #7ecf7f;
+  --highlight-bg: #24402f;
+}
+
+[data-theme="kabine"] h1,
+[data-theme="kabine"] h2,
+[data-theme="kabine"] h3 {
+  font-family: var(--font-big-shoulders), sans-serif;
+  letter-spacing: 0.01em;
+}
+
+[data-theme="kabine"] .card {
+  border-style: dashed;
 }

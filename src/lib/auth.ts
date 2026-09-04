@@ -54,6 +54,36 @@ export async function destroyAdminSession() {
   store.delete(COOKIE_NAME);
 }
 
+// ---------- Design-Vorschau ("Kabine") ----------
+// Rein optionales, unsigniertes Cookie fuer eine neue Optik in Erprobung -
+// im Gegensatz zum Admin-Cookie oben keine sicherheitsrelevante Session,
+// deshalb ohne HMAC. Wird an jeder Stelle, an der das Theme tatsaechlich
+// angewendet wird, zusaetzlich mit isAdmin() kombiniert - selbst wenn
+// dieses Cookie irgendwie ohne gueltige Admin-Session vorhanden waere,
+// greift die neue Optik dann trotzdem nicht.
+const DESIGN_PREVIEW_COOKIE = "bierapp_design_preview";
+const DESIGN_PREVIEW_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+
+export async function isDesignPreviewEnabled(): Promise<boolean> {
+  const store = await cookies();
+  return store.get(DESIGN_PREVIEW_COOKIE)?.value === "kabine";
+}
+
+export async function setDesignPreview(enabled: boolean) {
+  const store = await cookies();
+  if (enabled) {
+    store.set(DESIGN_PREVIEW_COOKIE, "kabine", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: DESIGN_PREVIEW_MAX_AGE_SECONDS,
+    });
+  } else {
+    store.delete(DESIGN_PREVIEW_COOKIE);
+  }
+}
+
 export function checkPassword(input: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return false;

@@ -1,12 +1,24 @@
+import { Big_Shoulders } from "next/font/google";
 import { prisma } from "@/lib/db";
 import { buildPlayerOverview } from "@/lib/kasten";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, isDesignPreviewEnabled } from "@/lib/auth";
 import { startOfBerlinDay } from "@/lib/timezone";
 import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
+import { DesignPreviewToggle } from "@/components/DesignPreviewToggle";
 import { deleteAssignmentAction } from "@/lib/actions";
+
+// Nur fuer die "Kabine"-Optik-Vorschau (siehe DesignPreviewToggle) - wird
+// nur dann tatsaechlich geladen/verwendet, wenn die Variable-Klasse unten
+// angewendet wird (admin + Vorschau aktiv), fuer alle anderen Nutzer ohne
+// jede Auswirkung.
+const bigShoulders = Big_Shoulders({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  variable: "--font-big-shoulders",
+});
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -29,7 +41,7 @@ function formatTime(d: Date) {
 export default async function HomePage() {
   const startOfToday = startOfBerlinDay();
 
-  const [nextMatch, overview, admin] = await Promise.all([
+  const [nextMatch, overview, admin, designPreview] = await Promise.all([
     prisma.match.findFirst({
       where: { date: { gte: startOfToday } },
       orderBy: { date: "asc" },
@@ -43,7 +55,12 @@ export default async function HomePage() {
     }),
     buildPlayerOverview(),
     isAdmin(),
+    isDesignPreviewEnabled(),
   ]);
+  // Zusaetzlich an isAdmin() geknuepft (nicht nur ans Cookie), damit die
+  // neue Optik unter keinen Umstaenden fuer normale Nutzer greift - siehe
+  // setDesignPreview() in lib/auth.ts.
+  const kabinePreview = admin && designPreview;
 
   const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
 
@@ -65,7 +82,16 @@ export default async function HomePage() {
   }));
 
   return (
-    <div className="space-y-8">
+    <div
+      data-theme={kabinePreview ? "kabine" : undefined}
+      className={`space-y-8 ${kabinePreview ? bigShoulders.variable : ""}`}
+    >
+      {admin && (
+        <div className="flex justify-end">
+          <DesignPreviewToggle enabled={kabinePreview} />
+        </div>
+      )}
+
       <section className="card overflow-hidden relative">
         <div className="relative aspect-[2.1/1]">
           <Image
@@ -112,7 +138,7 @@ export default async function HomePage() {
                     {nextMatch.assignments.map((a) => (
                       <div
                         key={a.id}
-                        className="flex items-start gap-2 rounded-xl bg-[#fbeed2] pl-3 pr-2 py-1.5"
+                        className="flex items-start gap-2 rounded-xl bg-[var(--highlight-bg)] pl-3 pr-2 py-1.5"
                       >
                         <div>
                           <p className="text-sm font-semibold text-gold-dark">🍻 {a.player.name}</p>

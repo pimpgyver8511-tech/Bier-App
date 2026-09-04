@@ -8,6 +8,7 @@ import {
   createAdminSession,
   destroyAdminSession,
   isAdmin,
+  setDesignPreview,
 } from "@/lib/auth";
 import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { syncMatchScheduleFromIcs, importAttendanceFromCsv } from "@/lib/spielerplus";
@@ -36,6 +37,14 @@ export async function loginAction(formData: FormData) {
 export async function logoutAction() {
   await destroyAdminSession();
   redirect("/");
+}
+
+// ---------- Design-Vorschau ("Kabine") ----------
+
+export async function setDesignPreviewAction(enabled: boolean) {
+  await requireAdmin();
+  await setDesignPreview(enabled);
+  revalidatePath("/");
 }
 
 // ---------- Players ----------
