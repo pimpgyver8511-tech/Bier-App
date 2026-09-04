@@ -6,7 +6,8 @@ import { fulfillPastMatchAssignments } from "@/lib/kasten";
 import { AttendanceRow } from "./AttendanceRow";
 import { AttendanceCsvImport } from "./AttendanceCsvImport";
 import { AssignmentPicker } from "@/components/AssignmentPicker";
-import { deleteAssignmentAction } from "@/lib/actions";
+import { deleteAssignmentAction, editMatchAction } from "@/lib/actions";
+import { formatBerlinDateTimeLocal } from "@/lib/timezone";
 
 function isPast(date: Date): boolean {
   return date.getTime() < Date.now();
@@ -68,6 +69,51 @@ export default async function MatchDetailPage({
           {match.location ? ` · ${match.location}` : ""} · {match.isHome ? "Heimspiel" : "Auswärtsspiel"}
         </p>
       </div>
+
+      <details className="card p-4 sm:p-5">
+        <summary className="cursor-pointer font-semibold text-sm">
+          ✏️ Datum, Uhrzeit, Gegner oder Ort ändern
+        </summary>
+        <form
+          action={async (formData: FormData) => {
+            "use server";
+            await editMatchAction(match.id, formData);
+          }}
+          className="grid sm:grid-cols-2 gap-3 mt-4"
+        >
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">Datum &amp; Uhrzeit</label>
+            <input
+              type="datetime-local"
+              name="date"
+              defaultValue={formatBerlinDateTimeLocal(match.date)}
+              className="input"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">Gegner</label>
+            <input type="text" name="opponent" defaultValue={match.opponent ?? ""} className="input" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">Ort</label>
+            <input type="text" name="location" defaultValue={match.location ?? ""} className="input" />
+          </div>
+          <div className="flex items-center gap-2 pt-6">
+            <input
+              type="checkbox"
+              name="isHome"
+              id="isHome-edit"
+              defaultChecked={match.isHome}
+              className="w-4 h-4"
+            />
+            <label htmlFor="isHome-edit" className="text-sm">Heimspiel</label>
+          </div>
+          <div className="sm:col-span-2">
+            <button type="submit" className="btn btn-primary text-sm">Speichern</button>
+          </div>
+        </form>
+      </details>
 
       <section className="card">
         <div className="px-5 sm:px-6 py-4 border-b border-border flex items-start justify-between gap-4 flex-wrap">

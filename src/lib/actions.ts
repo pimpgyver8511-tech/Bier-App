@@ -14,7 +14,7 @@ import { syncMatchScheduleFromIcs, importAttendanceFromCsv } from "@/lib/spieler
 import { syncBeerDeals } from "@/lib/beerdeals";
 import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
-import { withBerlinTime } from "@/lib/timezone";
+import { withBerlinTime, parseBerlinDateTimeLocal } from "@/lib/timezone";
 
 async function requireAdmin() {
   if (!(await isAdmin())) {
@@ -129,7 +129,7 @@ export async function createMatchAction(formData: FormData) {
   if (!dateStr) return;
 
   const match = await prisma.match.create({
-    data: { date: new Date(dateStr), opponent, location, isHome },
+    data: { date: parseBerlinDateTimeLocal(dateStr), opponent, location, isHome },
   });
 
   const players = await prisma.player.findMany({ where: { active: true } });
@@ -158,6 +158,39 @@ export async function deleteMatchAction(matchId: string) {
   await requireAdmin();
   await prisma.match.delete({ where: { id: matchId } });
   revalidatePath("/admin/matches");
+  revalidatePath("/");
+}
+
+/**
+ * Erlaubt es, Datum/Uhrzeit (und Gegner/Ort/Heimspiel) eines bestehenden
+ * Spiels manuell zu korrigieren - z.B. weil der Spielerplus-ICS-Sync fuer
+ * jedes Spiel pauschal 19 Uhr ansetzt (die tatsaechliche Anstosszeit steht
+ * im Kalender nicht zuverlaessig, siehe withBerlinTime()-Aufruf in
+ * syncMatchScheduleFromIcs). "dateManuallySet: true" sorgt dafuer, dass ein
+ * spaeterer automatischer Sync diese Korrektur nicht wieder ueberschreibt.
+ */
+export async function editMatchAction(matchId: string, formData: FormData) {
+  await requireAdmin();
+  const dateStr = String(formData.get("date") ?? "");
+  const opponent = String(formData.get("opponent") ?? "").trim() || null;
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const isHome = formData.get("isHome") === "on";
+  if (!dateStr) return;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      date: parseBerlinDateTimeLocal(dateStr),
+      dateManuallySet: true,
+      opponent,
+      location,
+      isHome,
+    },
+  });
+
+  revalidatePath(`/admin/matches/${matchId}`);
+  revalidatePath("/admin/matches");
+  revalidatePath("/admin/history");
   revalidatePath("/");
 }
 

@@ -22,14 +22,20 @@ model Player {
 }
 
 model Match {
-  id          String   @id @default(cuid())
-  externalId  String?  @unique
-  date        DateTime
-  opponent    String?
-  location    String?
-  isHome      Boolean  @default(true)
-  notes       String?
-  createdAt   DateTime @default(now())
+  id              String   @id @default(cuid())
+  externalId      String?  @unique
+  date            DateTime
+  // Wird beim manuellen Bearbeiten der Spielzeit gesetzt (siehe
+  // editMatchAction) - der Spielerplus-ICS-Sync setzt fuer jedes Spiel
+  // pauschal 19 Uhr an (die tatsaechliche Anstosszeit steht dort nicht
+  // zuverlaessig), ueberschreibt eine so manuell korrigierte Zeit aber
+  // nicht erneut (siehe syncMatchScheduleFromIcs).
+  dateManuallySet Boolean  @default(false)
+  opponent        String?
+  location        String?
+  isHome          Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
 
   attendances Attendance[]
   assignments KastenAssignment[]

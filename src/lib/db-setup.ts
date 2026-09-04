@@ -138,6 +138,12 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `ALTER TABLE "BeerDeal" ADD COLUMN "validUntil" TIMESTAMP(3)`,
     ],
   },
+  {
+    name: "20260903170000_match_date_manually_set",
+    statements: [
+      `ALTER TABLE "Match" ADD COLUMN "dateManuallySet" BOOLEAN NOT NULL DEFAULT false`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

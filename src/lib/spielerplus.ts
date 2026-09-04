@@ -96,15 +96,24 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
 
     const existing = await prisma.match.findUnique({ where: { externalId: uid } });
     if (existing) {
+      // Die Anstosszeit im ICS-Kalender ist nicht zuverlaessig (siehe
+      // withBerlinTime()-Aufruf oben, der pauschal 19 Uhr annimmt) - eine
+      // ueber editMatchAction manuell korrigierte Uhrzeit soll ein Sync
+      // deshalb nicht wieder mit der falschen Pauschal-Zeit ueberschreiben.
       const changed =
-        existing.date.getTime() !== date.getTime() ||
+        (!existing.dateManuallySet && existing.date.getTime() !== date.getTime()) ||
         existing.opponent !== opponent ||
         existing.isHome !== isHome ||
         existing.location !== location;
       if (changed) {
         await prisma.match.update({
           where: { id: existing.id },
-          data: { date, opponent, isHome, location },
+          data: {
+            date: existing.dateManuallySet ? existing.date : date,
+            opponent,
+            isHome,
+            location,
+          },
         });
         updated++;
       }
