@@ -557,6 +557,17 @@ function looksLikeBeer(headline: string | undefined): boolean {
 }
 
 /**
+ * Manche Brauereien fuehren unter ihrem Markennamen auch Produkte, die kein
+ * Bier sind - z.B. "Krombacher Spezi" (Cola-Orangen-Mischgetraenk, per
+ * echtem Nutzer-Screenshot bestaetigt: "Warsteiner oder Krombacher Spezi").
+ * "Krombacher" bleibt dabei zurecht in BEER_BRAND_KEYWORDS (fuer echte
+ * Krombacher-Bierangebote) - stattdessen wird pro "oder"-Sorten-Abschnitt
+ * gezielt nach solchen Nicht-Bier-Zusaetzen gesucht, damit z.B. "Warsteiner"
+ * im selben Angebot trotzdem als echtes Bierangebot erhalten bleibt.
+ */
+const NON_BEER_HEADLINE_QUALIFIERS = ["spezi"];
+
+/**
  * HIT formuliert Angebote fuer mehrere Sorten/Marken einer Aktion oft als
  * "<Marke A> <Zusatz> oder <Marke B/Zusatz>" (z.B. "Oettinger Pils oder
  * Export*", "Heineken oder Gösser Natur Radler" - per Nutzer-Screenshot
@@ -576,6 +587,8 @@ function extractHitBrandNames(headline: string): string[] {
   const segments = headline.split(/\s+oder\s+/i);
   const brands: string[] = [];
   for (const segment of segments) {
+    const normalizedSegment = normalizeForBrandMatch(segment);
+    if (NON_BEER_HEADLINE_QUALIFIERS.some((q) => normalizedSegment.includes(q))) continue;
     const words = segment.trim().split(/\s+/).filter(Boolean);
     let found: string | null = null;
     for (let start = 0; start < words.length && !found; start++) {
