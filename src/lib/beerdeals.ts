@@ -614,6 +614,22 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
     // Ein Angebot mit "oder" (z.B. "Heineken oder Gösser") wird zu mehreren
     // eigenstaendigen Angeboten (eines je Marke) statt zu einem einzigen
     // kombinierten Eintrag - siehe Kommentar an extractHitBrandNames().
+    //
+    // leaflet.url ist bei einem solchen Mehr-Marken-Angebot die generische
+    // "/angebot/<id>"-Seite, die auf hit.de aber offenbar immer nur EINE
+    // bestimmte Sorte anzeigt (per echtem Nutzer-Beispiel bestaetigt:
+    // "Paulaner Weissbier oder Budweiser Budvar" -> die generische Seite
+    // zeigt Paulaner, obwohl beide Marken denselben Link haben). Welche
+    // Sorte hit.de dort tatsaechlich zeigt, laesst sich aus den JSON-Daten
+    // nicht zuverlaessig herleiten (der korrekte, markenspezifische Link
+    // liegt unter einer eigenen "/sortiment/..."-URL mit Kategorie-Pfad
+    // und Produkt-Slug, die in den Leaflet-Daten schlicht nicht enthalten
+    // sind - nur MATNR/EAN pro Sorte, ohne Zuordnung zum Markennamen).
+    // Deshalb bekommt nur die zuerst im Titel genannte Marke (deckt sich
+    // im bestaetigten Beispiel mit der tatsaechlich angezeigten Sorte)
+    // diesen Link; alle weiteren Marken bekommen keinen Prospekt-Link statt
+    // eines falschen (die Tabelle blendet den Button dann einfach aus,
+    // siehe BeerDealsTable.tsx).
     const brandNames = extractHitBrandNames(leaflet.headline);
     for (let i = 0; i < brandNames.length; i++) {
       results.push({
@@ -621,7 +637,7 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
         brand: brandNames[i],
         store: HIT_STORE_NAME,
         price,
-        offerUrl: leaflet.url ?? null,
+        offerUrl: i === 0 ? leaflet.url ?? null : null,
         brochureId: null,
         validFrom: parseDate(leaflet.validFrom),
         validUntil: parseDate(leaflet.validTo),
