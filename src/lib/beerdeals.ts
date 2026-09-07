@@ -540,14 +540,16 @@ function normalizeForBrandMatch(value: string): string {
  * kaufda.de-Seite, die auf hit.de real als Bierkasten-Angebot bestaetigt
  * wurden, werden hier zusaetzlich ergaenzt ("Sternburg" bei Marktkauf,
  * "Stoertebeker" bei einem Angebot "Störtebeker Pils, Schwarzbier oder
- * Bernstein Weizen" - ohne diesen Eintrag erkennt extractHitBrandNames()
+ * Bernstein Weizen", "Muenchner Hofbraeu" bei "Münchner Hofbräu
+ * Oktoberfestbier" - ohne diesen Eintrag erkennt extractHitBrandNames()
  * dort keine bekannte Marke und faellt auf den kompletten Rohtitel als
- * "Marke" zurueck, statt nur "Störtebeker" zu zeigen).
+ * "Marke" zurueck, statt nur den Markennamen zu zeigen).
  */
 const BEER_BRAND_KEYWORDS = [
   ...KAUFDA_SOURCES.map((url) => url.slice(url.lastIndexOf("/") + 1)),
   "Sternburg",
   "Stoertebeker",
+  "Muenchner Hofbraeu",
 ].map(normalizeForBrandMatch);
 
 function looksLikeBeer(headline: string | undefined): boolean {
