@@ -462,6 +462,8 @@ type HitLeaflet = {
   validFrom?: string;
   validTo?: string;
   url?: string;
+  ean?: string;
+  assortmentMatnr?: { MATNR?: string; EAN11?: string }[];
 };
 
 /**
@@ -587,6 +589,55 @@ function extractHitBrandNames(headline: string): string[] {
   return brands.length > 0 ? brands : [headline.trim()];
 }
 
+/**
+ * Baut die markenspezifische hit.de-"Sortiment"-Detailseite fuer eine
+ * einzelne Artikelnummer (MATNR). Per echtem Nutzer-Test bestaetigt: der
+ * Kategorie-Pfad und der lesbare Produktname im echten Link
+ * (".../sortiment/getraenke-genussmittel/bier-bier-alkoholhaltig-4261744/
+ * budweiser-lagerbier-budvar-hell-000000000000203210K01") sind fuer die
+ * Weiterleitung komplett egal - ein Test mit Platzhaltern statt Kategorie
+ * und Produktname ("/sortiment/x/x-000000000000203210K01") oeffnete
+ * ebenfalls korrekt dasselbe Produkt. Nur die Artikelnummer (MATNR) am
+ * Ende zaehlt. Das Suffix "K01" ist an genau diesem einen bestaetigten
+ * Beispiel beobachtet (vermutlich ein generischer Verkaufseinheit-Code)
+ * und wird hier als konstant angenommen, da kein Gegenbeispiel vorliegt.
+ */
+function buildHitProductUrl(matnr: string): string {
+  const path = `/sortiment/x/x-${matnr}K01`;
+  return `https://www.hit.de/maerkte/leipzig/angebote?slideout-right=${encodeURIComponent(path)}`;
+}
+
+/**
+ * Bei einem Mehr-Marken-Angebot (z.B. "Paulaner Weissbier oder Budweiser
+ * Budvar") zeigt die generische "/angebot/<id>"-Seite (leaflet.url)
+ * zuverlaessig nur die zuerst im Titel genannte Sorte (siehe
+ * extractHitOffers) - fuer die anderen Marken braucht es die konkrete
+ * MATNR aus assortmentMatnr, um ueber buildHitProductUrl() korrekt zu
+ * verlinken. Die einzelnen assortmentMatnr-Eintraege sind aber nicht nach
+ * Marke beschriftet - nur leaflet.ean identifiziert zuverlaessig GENAU
+ * einen Eintrag (per echtem Beispiel bestaetigt: leaflet.ean 8594403110111
+ * = assortmentMatnr-Eintrag mit MATNR 000000000000203210, identisch mit
+ * dem vom Nutzer bestaetigten Sortiment-Link fuer Budweiser). Welcher der
+ * im Titel genannten Marken dieser eine Eintrag entspricht, laesst sich
+ * nur ueber den GS1-Laenderpraefix der EAN (erste 3 Ziffern) raten -
+ * deshalb bewusst nur fuer Marken hinterlegt, bei denen das per echtem
+ * Beispiel bestaetigt wurde, statt spekulativ fuer alle Marken zu raten.
+ */
+const FOREIGN_BRAND_EAN_PREFIXES: Record<string, string[]> = {
+  // Tschechien - bestaetigt an Angebot 28018554 (Budweiser Budvar, siehe
+  // Kommentar oben).
+  budweiser: ["858", "859"],
+};
+
+function findSpecificHitOfferUrl(leaflet: HitLeaflet, brand: string): string | null {
+  const prefixes = FOREIGN_BRAND_EAN_PREFIXES[normalizeForBrandMatch(brand)];
+  if (!prefixes || !leaflet.ean) return null;
+  const matched = leaflet.assortmentMatnr?.find((a) => a.EAN11 === leaflet.ean);
+  if (!matched?.MATNR || !matched.EAN11) return null;
+  if (!prefixes.includes(matched.EAN11.slice(0, 3))) return null;
+  return buildHitProductUrl(matched.MATNR);
+}
+
 type ExtractHitOffersResult = {
   offers: ExtractedOffer[];
   // Nur fuer die Diagnose eines leeren Ergebnisses gedacht (Sync-Meldung) -
@@ -619,25 +670,22 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
     // "/angebot/<id>"-Seite, die auf hit.de aber offenbar immer nur EINE
     // bestimmte Sorte anzeigt (per echtem Nutzer-Beispiel bestaetigt:
     // "Paulaner Weissbier oder Budweiser Budvar" -> die generische Seite
-    // zeigt Paulaner, obwohl beide Marken denselben Link haben). Welche
-    // Sorte hit.de dort tatsaechlich zeigt, laesst sich aus den JSON-Daten
-    // nicht zuverlaessig herleiten (der korrekte, markenspezifische Link
-    // liegt unter einer eigenen "/sortiment/..."-URL mit Kategorie-Pfad
-    // und Produkt-Slug, die in den Leaflet-Daten schlicht nicht enthalten
-    // sind - nur MATNR/EAN pro Sorte, ohne Zuordnung zum Markennamen).
-    // Deshalb bekommt nur die zuerst im Titel genannte Marke (deckt sich
-    // im bestaetigten Beispiel mit der tatsaechlich angezeigten Sorte)
-    // diesen Link; alle weiteren Marken bekommen keinen Prospekt-Link statt
-    // eines falschen (die Tabelle blendet den Button dann einfach aus,
-    // siehe BeerDealsTable.tsx).
+    // zeigt Paulaner). Diesen Link bekommt daher nur die zuerst im Titel
+    // genannte Marke. Fuer weitere Marken wird versucht, stattdessen die
+    // konkrete markenspezifische Seite zu verlinken (siehe
+    // findSpecificHitOfferUrl()) - gelingt das nicht (keine Zuordnung
+    // bekannt), gibt es lieber gar keinen Link statt eines falschen (die
+    // Tabelle blendet den Button dann einfach aus, siehe BeerDealsTable.tsx).
     const brandNames = extractHitBrandNames(leaflet.headline);
     for (let i = 0; i < brandNames.length; i++) {
+      const offerUrl =
+        i === 0 ? leaflet.url ?? null : findSpecificHitOfferUrl(leaflet, brandNames[i]);
       results.push({
         id: brandNames.length > 1 ? `hit-${leaflet.id}-${i}` : `hit-${leaflet.id}`,
         brand: brandNames[i],
         store: HIT_STORE_NAME,
         price,
-        offerUrl: i === 0 ? leaflet.url ?? null : null,
+        offerUrl,
         brochureId: null,
         validFrom: parseDate(leaflet.validFrom),
         validUntil: parseDate(leaflet.validTo),
