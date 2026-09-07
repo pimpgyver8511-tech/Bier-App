@@ -536,14 +536,18 @@ function normalizeForBrandMatch(value: string): string {
  * HIT liefert keine feinere Bier-Kategorie als "Getraenke" - diese enthaelt
  * auch Cola, Limonade, Wasser etc. Da KAUFDA_SOURCES bereits eine
  * kuratierte Liste an Bier-Markennamen ist, wird sie hier wiederverwendet,
- * um Getraenke-Angebote auf Bier einzugrenzen. "Sternburg" ist zusaetzlich
- * aufgenommen, da diese Marke laut Kommentar oben an KAUFDA_SOURCES keine
- * eigene kaufda.de-Seite hat, aber auf hit.de real als Bierkasten-Angebot
- * bestaetigt wurde.
+ * um Getraenke-Angebote auf Bier einzugrenzen. Marken ohne eigene
+ * kaufda.de-Seite, die auf hit.de real als Bierkasten-Angebot bestaetigt
+ * wurden, werden hier zusaetzlich ergaenzt ("Sternburg" bei Marktkauf,
+ * "Stoertebeker" bei einem Angebot "Störtebeker Pils, Schwarzbier oder
+ * Bernstein Weizen" - ohne diesen Eintrag erkennt extractHitBrandNames()
+ * dort keine bekannte Marke und faellt auf den kompletten Rohtitel als
+ * "Marke" zurueck, statt nur "Störtebeker" zu zeigen).
  */
 const BEER_BRAND_KEYWORDS = [
   ...KAUFDA_SOURCES.map((url) => url.slice(url.lastIndexOf("/") + 1)),
   "Sternburg",
+  "Stoertebeker",
 ].map(normalizeForBrandMatch);
 
 function looksLikeBeer(headline: string | undefined): boolean {
