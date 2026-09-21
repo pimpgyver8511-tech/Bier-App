@@ -588,9 +588,22 @@ const NON_BEER_HEADLINE_QUALIFIERS = ["spezi"];
 function extractHitBrandNames(headline: string): string[] {
   const segments = headline.split(/\s+oder\s+/i);
   const brands: string[] = [];
+  // Wird gesetzt, wenn ein Abschnitt gezielt als Nicht-Bier erkannt wurde
+  // (siehe NON_BEER_HEADLINE_QUALIFIERS) - anders als "kein bekannter
+  // Markenname gefunden" (dort greift der Rohtitel-Fallback unten als
+  // Sicherheitsnetz fuer eine noch unbekannte, aber echte Biermarke) ist
+  // das eine bewusste Erkennung, dass es sich NICHT um Bier handelt (z.B.
+  // "Paulaner Spezi oder Limo" - beide Sorten sind Softdrinks). Der
+  // Rohtitel-Fallback wuerde hier faelschlich "Paulaner Spezi oder Limo"
+  // als Marke anzeigen; stattdessen soll das ganze Angebot verworfen werden
+  // (leeres Array -> extractHitOffers erzeugt dafuer keinen Eintrag).
+  let hadNonBeerQualifier = false;
   for (const segment of segments) {
     const normalizedSegment = normalizeForBrandMatch(segment);
-    if (NON_BEER_HEADLINE_QUALIFIERS.some((q) => normalizedSegment.includes(q))) continue;
+    if (NON_BEER_HEADLINE_QUALIFIERS.some((q) => normalizedSegment.includes(q))) {
+      hadNonBeerQualifier = true;
+      continue;
+    }
     const words = segment.trim().split(/\s+/).filter(Boolean);
     let found: string | null = null;
     for (let start = 0; start < words.length && !found; start++) {
@@ -605,7 +618,8 @@ function extractHitBrandNames(headline: string): string[] {
     }
     if (found && !brands.includes(found)) brands.push(found);
   }
-  return brands.length > 0 ? brands : [headline.trim()];
+  if (brands.length > 0) return brands;
+  return hadNonBeerQualifier ? [] : [headline.trim()];
 }
 
 /**
