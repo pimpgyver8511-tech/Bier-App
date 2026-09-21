@@ -657,6 +657,27 @@ function findSpecificHitOfferUrl(leaflet: HitLeaflet, brand: string): string | n
   return buildHitProductUrl(matched.MATNR);
 }
 
+/**
+ * Fest hinterlegte MATNR fuer Marken, die bei HIT wiederholt als zweite
+ * (nicht verlinkte) Marke in einem "oder"-Angebot auftauchen (z.B.
+ * "Bitburger oder Veltins", "Jever oder Radeberger" - per echtem
+ * Nutzer-Beispiel bestaetigt), bei denen der EAN-Laenderpraefix-Trick oben
+ * NICHT weiterhilft, weil beide Marken aus Deutschland kommen und sich so
+ * nicht unterscheiden lassen. Die Artikelnummer eines Standard-Kastens
+ * einer Marke aendert sich erfahrungsgemaess nicht von Woche zu Woche,
+ * deshalb reicht hier ein fest hinterlegter Link (vom Nutzer direkt
+ * bestaetigt) statt einer dynamischen Herleitung.
+ */
+const STATIC_HIT_BRAND_MATNR: Record<string, string> = {
+  veltins: "000000000001058855",
+  radeberger: "000000000001058811",
+};
+
+function findStaticHitOfferUrl(brand: string): string | null {
+  const matnr = STATIC_HIT_BRAND_MATNR[normalizeForBrandMatch(brand)];
+  return matnr ? buildHitProductUrl(matnr) : null;
+}
+
 type ExtractHitOffersResult = {
   offers: ExtractedOffer[];
   // Nur fuer die Diagnose eines leeren Ergebnisses gedacht (Sync-Meldung) -
@@ -689,19 +710,24 @@ function extractHitOffers(html: string): ExtractHitOffersResult {
     // "/angebot/<id>"-Seite, die auf hit.de aber offenbar immer nur EINE
     // bestimmte Sorte anzeigt (per echtem Nutzer-Beispiel bestaetigt:
     // "Paulaner Weissbier oder Budweiser Budvar" -> die generische Seite
-    // zeigt Paulaner). Diesen Link bekommt daher nur die zuerst im Titel
-    // genannte Marke. Fuer weitere Marken wird versucht, stattdessen die
-    // konkrete markenspezifische Seite zu verlinken (siehe
-    // findSpecificHitOfferUrl()) - gelingt das nicht (keine Zuordnung
-    // bekannt), gibt es lieber gar keinen Link statt eines falschen (die
-    // Tabelle blendet den Button dann einfach aus, siehe BeerDealsTable.tsx).
+    // zeigt Paulaner). Eine bekannte markenspezifische Seite (siehe
+    // findSpecificHitOfferUrl()/findStaticHitOfferUrl()) hat aber immer
+    // Vorrang, auch fuer die zuerst genannte Marke - der generische Link
+    // ist nur eine Vermutung, waehrend eine bekannte Zuordnung sicher
+    // stimmt. Gelingt weder das eine noch das andere, gibt es fuer alle
+    // Marken ausser der zuerst genannten lieber gar keinen Link statt
+    // eines falschen (die Tabelle blendet den Button dann einfach aus,
+    // siehe BeerDealsTable.tsx).
     const brandNames = extractHitBrandNames(leaflet.headline);
     for (let i = 0; i < brandNames.length; i++) {
+      const brand = brandNames[i];
       const offerUrl =
-        i === 0 ? leaflet.url ?? null : findSpecificHitOfferUrl(leaflet, brandNames[i]);
+        findSpecificHitOfferUrl(leaflet, brand) ??
+        findStaticHitOfferUrl(brand) ??
+        (i === 0 ? leaflet.url ?? null : null);
       results.push({
         id: brandNames.length > 1 ? `hit-${leaflet.id}-${i}` : `hit-${leaflet.id}`,
-        brand: brandNames[i],
+        brand,
         store: HIT_STORE_NAME,
         price,
         offerUrl,
