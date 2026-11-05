@@ -1,6 +1,5 @@
 import ical, { type CalendarResponse, type VEvent } from "node-ical";
 import { prisma } from "@/lib/db";
-import { withBerlinTime } from "@/lib/timezone";
 
 export type IcsSyncResult = {
   ok: boolean;
@@ -80,26 +79,48 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
     if (!raw || raw.type !== "VEVENT") continue;
     const event = raw as VEvent;
     const uid = event.uid ?? "";
-    if (!uid.startsWith("game.")) continue;
 
-    const summary = textValue(event.summary) ?? "";
-    const summaryMatch = summary.match(/^Spiel:\s*(.+?)\s+-\s+(.+)$/);
-    if (!summaryMatch) continue;
-    const [, teamA, teamB] = summaryMatch;
-    const isHome = teamA.trim() === ourTeamName;
-    const isAway = teamB.trim() === ourTeamName;
-    if (!isHome && !isAway) continue;
+    let type: "SPIEL" | "TRAINING";
+    let opponent: string | null = null;
+    let isHome = true;
 
-    const opponent = (isHome ? teamB : teamA).trim();
-    const date = withBerlinTime(event.start as Date, 19, 0);
+    if (uid.startsWith("game.")) {
+      type = "SPIEL";
+      const summary = textValue(event.summary) ?? "";
+      const summaryMatch = summary.match(/^Spiel:\s*(.+?)\s+-\s+(.+)$/);
+      if (!summaryMatch) continue;
+      const [, teamA, teamB] = summaryMatch;
+      const isHomeTeam = teamA.trim() === ourTeamName;
+      const isAwayTeam = teamB.trim() === ourTeamName;
+      if (!isHomeTeam && !isAwayTeam) continue;
+      opponent = (isHomeTeam ? teamB : teamA).trim();
+      isHome = isHomeTeam;
+    } else if (uid.startsWith("training.")) {
+      // Spielerplus liefert Trainingstermine im Kalender mit eigenem
+      // UID-Praefix und schlichtem SUMMARY "Training", ohne Gegner - per
+      // echtem Nutzer-Kalenderexport bestaetigt.
+      type = "TRAINING";
+    } else {
+      // Andere Termin-Arten (event./tournament./absence., z.B.
+      // "Weihnachtsfeier", "Hallenstadtmeisterschaft", persoenlicher
+      // "Urlaub") sind kein Spiel/Training und werden nicht uebernommen.
+      continue;
+    }
+
+    // Die ICS-Datei liefert die tatsaechliche Anstoss-/Beginnzeit bereits
+    // korrekt in Berliner Ortszeit (DTSTART;TZID=Europe/Berlin:...) -
+    // node-ical parst das schon in einen korrekten absoluten Zeitpunkt, eine
+    // zusaetzliche Umrechnung ist nicht noetig. Frueher wurde hier
+    // faelschlich pauschal 19 Uhr angenommen (in der Annahme, die
+    // Kalender-Zeit sei unzuverlaessig) - das war der eigentliche Grund fuer
+    // falsch angezeigte Anstosszeiten, nicht eine unzuverlaessige Quelle.
+    const date = event.start as Date;
     const location = textValue(event.location);
 
     const existing = await prisma.match.findUnique({ where: { externalId: uid } });
     if (existing) {
-      // Die Anstosszeit im ICS-Kalender ist nicht zuverlaessig (siehe
-      // withBerlinTime()-Aufruf oben, der pauschal 19 Uhr annimmt) - eine
-      // ueber editMatchAction manuell korrigierte Uhrzeit soll ein Sync
-      // deshalb nicht wieder mit der falschen Pauschal-Zeit ueberschreiben.
+      // dateManuallySet schuetzt eine bewusst von Hand korrigierte Zeit
+      // davor, von einem Sync wieder ueberschrieben zu werden.
       const changed =
         (!existing.dateManuallySet && existing.date.getTime() !== date.getTime()) ||
         existing.opponent !== opponent ||
@@ -119,7 +140,7 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
       }
     } else {
       const match = await prisma.match.create({
-        data: { externalId: uid, date, opponent, isHome, location },
+        data: { externalId: uid, type, date, opponent, isHome, location },
       });
       await prisma.attendance.createMany({
         data: activePlayers.map((p) => ({ matchId: match.id, playerId: p.id })),
@@ -128,7 +149,7 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
     }
   }
 
-  const message = `${created} neue(s), ${updated} aktualisierte(s) Spiel(e) übernommen.`;
+  const message = `${created} neue(s), ${updated} aktualisierte(s) Spiel(e)/Training(s) übernommen.`;
   await prisma.spielerplusConfig.update({
     where: { id: 1 },
     data: { lastSyncAt: new Date(), lastSyncOk: true, lastSyncMsg: message },

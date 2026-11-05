@@ -37,19 +37,32 @@ export default async function MatchesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Spiele</h1>
+        <h1 className="text-2xl font-bold">Spiele &amp; Training</h1>
         <p className="text-muted text-sm mt-1">
-          Spieltag anlegen, danach Anwesenheit pflegen und Kasten zuteilen.
+          Termin anlegen, danach Anwesenheit pflegen und Kasten zuteilen.
         </p>
       </div>
 
       <form action={createMatchAction} className="card p-4 grid sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2 flex items-center gap-4">
+          <span className="text-sm font-medium text-muted">Art</span>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="radio" name="type" value="SPIEL" defaultChecked className="w-4 h-4" />
+            Spiel
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="radio" name="type" value="TRAINING" className="w-4 h-4" />
+            Training
+          </label>
+        </div>
         <div>
           <label className="text-sm font-medium text-muted block mb-1">Datum &amp; Uhrzeit</label>
           <input type="datetime-local" name="date" className="input" required />
         </div>
         <div>
-          <label className="text-sm font-medium text-muted block mb-1">Gegner</label>
+          <label className="text-sm font-medium text-muted block mb-1">
+            Gegner <span className="font-normal">(nur bei Spiel)</span>
+          </label>
           <input type="text" name="opponent" className="input" placeholder="z. B. SV Musterhausen" />
         </div>
         <div>
@@ -58,7 +71,9 @@ export default async function MatchesPage() {
         </div>
         <div className="flex items-center gap-2 pt-6">
           <input type="checkbox" name="isHome" id="isHome" defaultChecked className="w-4 h-4" />
-          <label htmlFor="isHome" className="text-sm">Heimspiel</label>
+          <label htmlFor="isHome" className="text-sm">
+            Heimspiel <span className="text-muted font-normal">(nur bei Spiel)</span>
+          </label>
         </div>
 
         <div className="sm:col-span-2 border-t border-border pt-3 mt-1">
@@ -87,7 +102,7 @@ export default async function MatchesPage() {
         </div>
 
         <div className="sm:col-span-2">
-          <button type="submit" className="btn btn-primary">+ Spiel anlegen</button>
+          <button type="submit" className="btn btn-primary">+ Termin anlegen</button>
         </div>
       </form>
 
@@ -97,10 +112,16 @@ export default async function MatchesPage() {
           return (
             <div key={m.id} className="card p-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="font-semibold">{formatDateTime(m.date)}</p>
+                <p className="font-semibold flex items-center gap-2">
+                  {formatDateTime(m.date)}
+                  {m.type === "TRAINING" && <span className="badge badge-gray">Training</span>}
+                </p>
                 <p className="text-sm text-muted">
-                  {m.opponent ? `gegen ${m.opponent}` : "Gegner offen"}
-                  {m.location ? ` · ${m.location}` : ""} · {m.isHome ? "Heim" : "Auswärts"}
+                  {m.type === "TRAINING"
+                    ? m.location
+                    : `${m.opponent ? `gegen ${m.opponent}` : "Gegner offen"}${
+                        m.location ? ` · ${m.location}` : ""
+                      } · ${m.isHome ? "Heim" : "Auswärts"}`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -122,7 +143,7 @@ export default async function MatchesPage() {
           );
         })}
         {matches.length === 0 && (
-          <p className="text-muted text-center py-6">Keine anstehenden Spiele.</p>
+          <p className="text-muted text-center py-6">Keine anstehenden Termine.</p>
         )}
       </div>
     </div>

@@ -78,20 +78,34 @@ export default async function SettingsPage() {
               required
             />
           </div>
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">
+              Kästen pro Training
+            </label>
+            <input
+              type="number"
+              name="kastenPerTraining"
+              min={1}
+              defaultValue={settings?.kastenPerTraining ?? 1}
+              className="input"
+              required
+            />
+          </div>
           <button type="submit" className="btn btn-primary">Speichern</button>
         </form>
       </section>
 
       <section className="card p-5 sm:p-6 space-y-4">
-        <h2 className="text-lg font-bold">Spielplan-Sync (Spielerplus)</h2>
+        <h2 className="text-lg font-bold">Spielplan- &amp; Trainings-Sync (Spielerplus)</h2>
         <p className="text-sm text-muted">
           Spielerplus bietet unter „Kalender abonnieren&rdquo; einen persönlichen .ics-Link an
           (Team-Kalender → Kalender-Symbol → „Kalender abonnieren&rdquo;). Der wird hier
           eingetragen und beim Synchronisieren einfach per HTTP abgerufen – kein Login, kein
           Browser nötig.
-          Übernommen werden Datum, Ort, Heim/Auswärts und Gegner neuer bzw. verschobener Spiele.
-          Die Zusagen/Absagen der einzelnen Spieler stehen nicht im Kalender-Export und bleiben
-          weiterhin manuell auf der jeweiligen Spiel-Seite zu pflegen.
+          Übernommen werden Datum/Uhrzeit, Ort, Heim/Auswärts und Gegner neuer bzw. verschobener
+          Spiele sowie Datum/Uhrzeit und Ort neuer Trainingstermine. Die Zusagen/Absagen der
+          einzelnen Spieler stehen nicht im Kalender-Export und bleiben weiterhin manuell auf der
+          jeweiligen Termin-Seite zu pflegen.
         </p>
 
         <form action={updateIcsUrlAction} className="space-y-2 max-w-lg">

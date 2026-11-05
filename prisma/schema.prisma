@@ -22,23 +22,32 @@ model Player {
 }
 
 model Match {
-  id              String   @id @default(cuid())
-  externalId      String?  @unique
+  id              String    @id @default(cuid())
+  externalId      String?   @unique
+  // SPIEL (Default) oder TRAINING - siehe syncMatchScheduleFromIcs()
+  // (UID-Praefix "training." im Spielerplus-.ics-Kalender). Gegner/
+  // Heim-Auswaerts sind nur bei SPIEL relevant; Anwesenheit und
+  // Kasten-Zuteilung funktionieren fuer beide Arten identisch.
+  type            MatchType @default(SPIEL)
   date            DateTime
   // Wird beim manuellen Bearbeiten der Spielzeit gesetzt (siehe
-  // editMatchAction) - der Spielerplus-ICS-Sync setzt fuer jedes Spiel
-  // pauschal 19 Uhr an (die tatsaechliche Anstosszeit steht dort nicht
-  // zuverlaessig), ueberschreibt eine so manuell korrigierte Zeit aber
-  // nicht erneut (siehe syncMatchScheduleFromIcs).
-  dateManuallySet Boolean  @default(false)
+  // editMatchAction) - schuetzt eine bewusst korrigierte Zeit davor, vom
+  // naechsten Spielerplus-ICS-Sync wieder ueberschrieben zu werden (siehe
+  // syncMatchScheduleFromIcs).
+  dateManuallySet Boolean   @default(false)
   opponent        String?
   location        String?
-  isHome          Boolean  @default(true)
+  isHome          Boolean   @default(true)
   notes           String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   attendances Attendance[]
   assignments KastenAssignment[]
+}
+
+enum MatchType {
+  SPIEL
+  TRAINING
 }
 
 enum AttendanceStatus {
@@ -106,9 +115,10 @@ model KastenImportRow {
 }
 
 model Settings {
-  id             Int    @id @default(1)
-  cooldownWeeks  Int    @default(6)
-  kastenPerMatch Int    @default(2)
+  id                Int @id @default(1)
+  cooldownWeeks     Int @default(6)
+  kastenPerMatch    Int @default(2)
+  kastenPerTraining Int @default(1)
 }
 
 model SpielerplusConfig {

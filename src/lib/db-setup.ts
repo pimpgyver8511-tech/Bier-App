@@ -144,6 +144,14 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `ALTER TABLE "Match" ADD COLUMN "dateManuallySet" BOOLEAN NOT NULL DEFAULT false`,
     ],
   },
+  {
+    name: "20261105120000_match_type_and_kasten_per_training",
+    statements: [
+      `CREATE TYPE "MatchType" AS ENUM ('SPIEL', 'TRAINING')`,
+      `ALTER TABLE "Match" ADD COLUMN "type" "MatchType" NOT NULL DEFAULT 'SPIEL'`,
+      `ALTER TABLE "Settings" ADD COLUMN "kastenPerTraining" INTEGER NOT NULL DEFAULT 1`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

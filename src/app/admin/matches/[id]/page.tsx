@@ -60,19 +60,26 @@ export default async function MatchDetailPage({
       <div>
         <p className="text-sm text-muted">
           <Link href="/admin/matches" className="hover:underline">
-            ← Alle Spiele
+            ← Alle Termine
           </Link>
         </p>
-        <h1 className="text-2xl font-bold mt-1">{formatDateTime(match.date)}</h1>
-        <p className="text-muted text-sm mt-1">
-          {match.opponent ? `gegen ${match.opponent}` : "Gegner offen"}
-          {match.location ? ` · ${match.location}` : ""} · {match.isHome ? "Heimspiel" : "Auswärtsspiel"}
-        </p>
+        <h1 className="text-2xl font-bold mt-1 flex items-center gap-2">
+          {formatDateTime(match.date)}
+          {match.type === "TRAINING" && <span className="badge badge-gray">Training</span>}
+        </h1>
+        {match.type === "SPIEL" ? (
+          <p className="text-muted text-sm mt-1">
+            {match.opponent ? `gegen ${match.opponent}` : "Gegner offen"}
+            {match.location ? ` · ${match.location}` : ""} · {match.isHome ? "Heimspiel" : "Auswärtsspiel"}
+          </p>
+        ) : (
+          match.location && <p className="text-muted text-sm mt-1">{match.location}</p>
+        )}
       </div>
 
       <details className="card p-4 sm:p-5">
         <summary className="cursor-pointer font-semibold text-sm">
-          ✏️ Datum, Uhrzeit, Gegner oder Ort ändern
+          ✏️ Datum, Uhrzeit{match.type === "SPIEL" ? ", Gegner oder Ort" : " oder Ort"} ändern
         </summary>
         <form
           action={async (formData: FormData) => {
@@ -91,24 +98,28 @@ export default async function MatchDetailPage({
               required
             />
           </div>
-          <div>
-            <label className="text-sm font-medium text-muted block mb-1">Gegner</label>
-            <input type="text" name="opponent" defaultValue={match.opponent ?? ""} className="input" />
-          </div>
+          {match.type === "SPIEL" && (
+            <div>
+              <label className="text-sm font-medium text-muted block mb-1">Gegner</label>
+              <input type="text" name="opponent" defaultValue={match.opponent ?? ""} className="input" />
+            </div>
+          )}
           <div>
             <label className="text-sm font-medium text-muted block mb-1">Ort</label>
             <input type="text" name="location" defaultValue={match.location ?? ""} className="input" />
           </div>
-          <div className="flex items-center gap-2 pt-6">
-            <input
-              type="checkbox"
-              name="isHome"
-              id="isHome-edit"
-              defaultChecked={match.isHome}
-              className="w-4 h-4"
-            />
-            <label htmlFor="isHome-edit" className="text-sm">Heimspiel</label>
-          </div>
+          {match.type === "SPIEL" && (
+            <div className="flex items-center gap-2 pt-6">
+              <input
+                type="checkbox"
+                name="isHome"
+                id="isHome-edit"
+                defaultChecked={match.isHome}
+                className="w-4 h-4"
+              />
+              <label htmlFor="isHome-edit" className="text-sm">Heimspiel</label>
+            </div>
+          )}
           <div className="sm:col-span-2">
             <button type="submit" className="btn btn-primary text-sm">Speichern</button>
           </div>

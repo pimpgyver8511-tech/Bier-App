@@ -70,7 +70,7 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
       <p className="text-sm text-muted">
         Vorausgewählt sind die anwesenden Spieler mit mindestens einem offenen Kasten, die am
         längsten keinen Kasten mehr gebracht haben ({suggestion.kastenPerMatch} Vorschläge). Ein
-        Kasten kann nur Spielern zugeteilt werden, die für dieses Spiel zugesagt haben.
+        Kasten kann nur Spielern zugeteilt werden, die für diesen Termin zugesagt haben.
       </p>
 
       <div className="space-y-1.5">
@@ -112,7 +112,7 @@ export function AssignmentPicker({ matchId }: { matchId: string }) {
                   min={1}
                   value={counts.get(c.playerId)}
                   onChange={(e) => setCount(c.playerId, Number(e.target.value))}
-                  title={`Anzahl Kästen, die ${c.name} zu diesem Spiel mitbringt`}
+                  title={`Anzahl Kästen, die ${c.name} zu diesem Termin mitbringt`}
                   className="input w-14 py-0.5 px-1.5 text-center"
                 />
               )}

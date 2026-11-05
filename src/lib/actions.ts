@@ -121,15 +121,19 @@ export async function deletePlayerAction(playerId: string) {
 export async function createMatchAction(formData: FormData) {
   await requireAdmin();
   const dateStr = String(formData.get("date") ?? "");
-  const opponent = String(formData.get("opponent") ?? "").trim() || null;
+  const type = formData.get("type") === "TRAINING" ? "TRAINING" : "SPIEL";
+  // Gegner/Heimspiel sind bei einem Training nicht relevant - werden auch
+  // dann nicht gespeichert, wenn versehentlich trotzdem etwas im Formular
+  // stand (z.B. nach Umschalten der Art ohne Felder zu leeren).
+  const opponent = type === "SPIEL" ? String(formData.get("opponent") ?? "").trim() || null : null;
   const location = String(formData.get("location") ?? "").trim() || null;
-  const isHome = formData.get("isHome") === "on";
+  const isHome = type === "SPIEL" && formData.get("isHome") === "on";
   const kastenReason = String(formData.get("kastenReason") ?? "").trim() || null;
   const kastenPlayerIds = formData.getAll("kastenPlayers").map(String).filter(Boolean);
   if (!dateStr) return;
 
   const match = await prisma.match.create({
-    data: { date: parseBerlinDateTimeLocal(dateStr), opponent, location, isHome },
+    data: { type, date: parseBerlinDateTimeLocal(dateStr), opponent, location, isHome },
   });
 
   const players = await prisma.player.findMany({ where: { active: true } });
@@ -411,10 +415,11 @@ export async function updateSettingsAction(formData: FormData) {
   await requireAdmin();
   const cooldownWeeks = Number(formData.get("cooldownWeeks") ?? 6);
   const kastenPerMatch = Number(formData.get("kastenPerMatch") ?? 2);
+  const kastenPerTraining = Number(formData.get("kastenPerTraining") ?? 1);
   await prisma.settings.upsert({
     where: { id: 1 },
-    update: { cooldownWeeks, kastenPerMatch },
-    create: { id: 1, cooldownWeeks, kastenPerMatch },
+    update: { cooldownWeeks, kastenPerMatch, kastenPerTraining },
+    create: { id: 1, cooldownWeeks, kastenPerMatch, kastenPerTraining },
   });
   revalidatePath("/admin/settings");
 }

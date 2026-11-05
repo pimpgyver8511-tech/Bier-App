@@ -46,7 +46,7 @@ async function getSettings() {
   return (
     settings ??
     (await prisma.settings.create({
-      data: { id: 1, cooldownWeeks: 6, kastenPerMatch: 2 },
+      data: { id: 1, cooldownWeeks: 6, kastenPerMatch: 2, kastenPerTraining: 1 },
     }))
   );
 }
@@ -138,11 +138,14 @@ export async function buildAssignmentSuggestion(
     return a.lastAssignmentDate.getTime() - b.lastAssignmentDate.getTime();
   });
 
-  const suggested = eligible.slice(0, settings.kastenPerMatch);
+  // Beim Training reicht in der Regel ein Kasten statt der ueblichen
+  // Spieltags-Anzahl - eigene Einstellung (siehe Settings.kastenPerTraining).
+  const kastenCount = match.type === "TRAINING" ? settings.kastenPerTraining : settings.kastenPerMatch;
+  const suggested = eligible.slice(0, kastenCount);
 
   return {
     matchId,
-    kastenPerMatch: settings.kastenPerMatch,
+    kastenPerMatch: kastenCount,
     candidates,
     suggested,
   };

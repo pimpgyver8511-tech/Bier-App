@@ -2,11 +2,9 @@ import { prisma } from "@/lib/db";
 import { buildPlayerOverview } from "@/lib/kasten";
 import { isAdmin } from "@/lib/auth";
 import { startOfBerlinDay } from "@/lib/timezone";
-import Link from "next/link";
 import Image from "next/image";
 import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
-import { AssignmentPicker } from "@/components/AssignmentPicker";
-import { deleteAssignmentAction } from "@/lib/actions";
+import { NextEventCard } from "@/components/NextEventCard";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -18,34 +16,31 @@ function formatDate(d: Date) {
   });
 }
 
-function formatTime(d: Date) {
-  return d.toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Berlin",
-  });
-}
-
 export default async function HomePage() {
   const startOfToday = startOfBerlinDay();
 
-  const [nextMatch, overview, admin] = await Promise.all([
+  const eventInclude = {
+    attendances: { include: { player: true } },
+    // "Bringt den Kasten mit" zeigt nur wer noch offen ist - bereits
+    // erledigte Zuweisungen (z.B. per erledigt-Schalter in der Kasten-
+    // Historie vorab bestaetigt) sollen hier nicht mehr auftauchen.
+    assignments: { where: { fulfilled: false }, include: { player: true } },
+  } as const;
+
+  const [nextMatch, nextTraining, overview, admin] = await Promise.all([
     prisma.match.findFirst({
-      where: { date: { gte: startOfToday } },
+      where: { date: { gte: startOfToday }, type: "SPIEL" },
       orderBy: { date: "asc" },
-      include: {
-        attendances: { include: { player: true } },
-        // "Bringt den Kasten mit" zeigt nur wer noch offen ist - bereits
-        // erledigte Zuweisungen (z.B. per erledigt-Schalter in der Kasten-
-        // Historie vorab bestaetigt) sollen hier nicht mehr auftauchen.
-        assignments: { where: { fulfilled: false }, include: { player: true } },
-      },
+      include: eventInclude,
+    }),
+    prisma.match.findFirst({
+      where: { date: { gte: startOfToday }, type: "TRAINING" },
+      orderBy: { date: "asc" },
+      include: eventInclude,
     }),
     buildPlayerOverview(),
     isAdmin(),
   ]);
-
-  const zusagen = nextMatch?.attendances.filter((a) => a.status === "ZUSAGE") ?? [];
 
   const queueRows: QueueRow[] = overview.map((p) => ({
     playerId: p.playerId,
@@ -80,89 +75,23 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="card overflow-hidden">
-        <div className="bg-brand-dark text-white px-5 sm:px-6 py-4">
-          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-            🍺 Nächstes Spiel
-          </h1>
-        </div>
-        <div className="p-5 sm:p-6">
-          {nextMatch ? (
-            <div className="space-y-4">
-              <div>
-                <p className="text-xl font-semibold">
-                  {formatDate(nextMatch.date)}, {formatTime(nextMatch.date)} Uhr
-                </p>
-                <p className="text-muted text-sm mt-1">
-                  {nextMatch.opponent ? `gegen ${nextMatch.opponent}` : "Gegner noch offen"}
-                  {nextMatch.location ? ` · ${nextMatch.location}` : ""}
-                  {" · "}
-                  {nextMatch.isHome ? "Heimspiel" : "Auswärtsspiel"}
-                </p>
-              </div>
+      <NextEventCard
+        title="🍺 Nächstes Spiel"
+        match={nextMatch}
+        admin={admin}
+        emptyMessage="Aktuell ist kein anstehendes Spiel eingetragen."
+        createHref="/admin/matches"
+        createLabel="🍺 Spiel anlegen & Kasten-Verantwortliche festlegen →"
+      />
 
-              <div className="flex flex-wrap gap-2 items-center text-sm text-muted">
-                <span className="badge badge-green">{zusagen.length} Zusagen</span>
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-muted mb-2">Bringt den Kasten mit</p>
-                {nextMatch.assignments.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {nextMatch.assignments.map((a) => (
-                      <div
-                        key={a.id}
-                        className="flex items-start gap-2 rounded-xl bg-[#fbeed2] pl-3 pr-2 py-1.5"
-                      >
-                        <div>
-                          <p className="text-sm font-semibold text-gold-dark">🍻 {a.player.name}</p>
-                          {a.reason && (
-                            <p className="text-xs text-muted mt-0.5">{a.reason}</p>
-                          )}
-                        </div>
-                        {admin && (
-                          <form
-                            action={async () => {
-                              "use server";
-                              await deleteAssignmentAction(a.id);
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="text-gold-dark/60 hover:text-danger text-sm leading-none px-0.5"
-                              aria-label={`Zuteilung für ${a.player.name} entfernen`}
-                              title="Entfernen"
-                            >
-                              ✕
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : admin ? (
-                  <AssignmentPicker matchId={nextMatch.id} />
-                ) : (
-                  <p className="text-sm text-muted italic">
-                    Noch nicht festgelegt.
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-muted">
-                Aktuell ist kein anstehendes Spiel eingetragen.
-              </p>
-              {admin && (
-                <Link href="/admin/matches" className="btn btn-gold text-sm">
-                  🍺 Spiel anlegen & Kasten-Verantwortliche festlegen →
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
+      <NextEventCard
+        title="🏋️ Nächstes Training"
+        match={nextTraining}
+        admin={admin}
+        emptyMessage="Aktuell ist kein anstehendes Training eingetragen."
+        createHref="/admin/matches"
+        createLabel="🏋️ Training anlegen & Kasten-Verantwortliche festlegen →"
+      />
 
       <section className="card">
         <div className="px-5 sm:px-6 py-4 border-b border-border">
