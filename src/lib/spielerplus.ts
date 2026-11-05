@@ -114,7 +114,15 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
     // faelschlich pauschal 19 Uhr angenommen (in der Annahme, die
     // Kalender-Zeit sei unzuverlaessig) - das war der eigentliche Grund fuer
     // falsch angezeigte Anstosszeiten, nicht eine unzuverlaessige Quelle.
-    const date = event.start as Date;
+    let date = event.start as Date;
+    if (type === "TRAINING") {
+      // Bei Trainingsterminen ist DTSTART der Treffpunkt, nicht der
+      // tatsaechliche Trainingsbeginn - per echter Nutzer-Rueckmeldung
+      // bestaetigt 30 Minuten davor (18:30 Treffpunkt -> 19:00 Beginn, bei
+      // allen Trainings der echten Kalenderdatei durchgaengig so). Bei
+      // Spielen ist DTSTART dagegen bereits der echte Anstoss, siehe oben.
+      date = new Date(date.getTime() + 30 * 60 * 1000);
+    }
     const location = textValue(event.location);
 
     const existing = await prisma.match.findUnique({ where: { externalId: uid } });
