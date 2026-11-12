@@ -54,6 +54,22 @@ export async function destroyAdminSession() {
   store.delete(COOKIE_NAME);
 }
 
+/**
+ * Token fuer den Link zur nicht verlinkten Sekt-Seite (/prickelnd/<token>).
+ * Aus SESSION_SECRET abgeleitet statt im Code hinterlegt, weil das Repo
+ * oeffentlich ist - ein fester Pfad im Code waere fuer jeden lesbar. Wer den
+ * Link kennt, sieht die Seite ohne Login (gedacht zum Weitergeben).
+ */
+export function getSparklingShareToken(): string {
+  return sign("sparkling-share-v1").slice(0, 16);
+}
+
+export function isValidSparklingShareToken(token: string): boolean {
+  const a = Buffer.from(token);
+  const b = Buffer.from(getSparklingShareToken());
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export function checkPassword(input: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return false;

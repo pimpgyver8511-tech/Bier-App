@@ -152,3 +152,27 @@ model BeerDealsConfig {
   lastSyncOk  Boolean   @default(false)
   lastSyncMsg String?
 }
+
+// Sekt-/Prosecco-Angebote fuer eine nicht verlinkte Spass-Seite (siehe
+// src/lib/sparklingdeals.ts) - bewusst eine eigene Tabelle, damit die
+// Bierangebote der Mannschaft davon komplett unberuehrt bleiben. Gleiches
+// Prinzip wie BeerDeal: bei jedem Sync komplett geleert und neu befuellt.
+model SparklingDeal {
+  id         String    @id @default(cuid())
+  title      String
+  details    String?
+  store      String
+  price      Float
+  sourceUrl  String
+  offerUrl   String?
+  validFrom  DateTime?
+  validUntil DateTime?
+  fetchedAt  DateTime  @default(now())
+}
+
+model SparklingDealsConfig {
+  id          Int       @id @default(1)
+  lastSyncAt  DateTime?
+  lastSyncOk  Boolean   @default(false)
+  lastSyncMsg String?
+}

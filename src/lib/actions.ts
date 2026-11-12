@@ -12,6 +12,7 @@ import {
 import { buildAssignmentSuggestion } from "@/lib/kasten";
 import { syncMatchScheduleFromIcs, importAttendanceFromCsv } from "@/lib/spielerplus";
 import { syncBeerDeals } from "@/lib/beerdeals";
+import { syncSparklingDeals } from "@/lib/sparklingdeals";
 import { applyPendingMigrations } from "@/lib/db-setup";
 import { RAW_IMPORT_ROWS } from "@/lib/import-data";
 import { withBerlinTime, parseBerlinDateTimeLocal } from "@/lib/timezone";
@@ -448,6 +449,13 @@ export async function syncBeerDealsAction() {
   await requireAdmin();
   const result = await syncBeerDeals();
   revalidatePath("/");
+  return result;
+}
+
+export async function syncSparklingDealsAction() {
+  await requireAdmin();
+  const result = await syncSparklingDeals();
+  revalidatePath("/prickelnd/[token]", "page");
   return result;
 }
 

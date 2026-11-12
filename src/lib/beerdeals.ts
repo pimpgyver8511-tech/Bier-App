@@ -19,7 +19,7 @@ export type BeerDealsSyncResult = {
  * Marken wie Sternburg haben gar keine eigene Seite, per echtem
  * Nutzer-Test bestaetigt: 403 beim Versuch, eine geratene URL dafuer
  * aufzurufen). Diese Liste bleibt als zusaetzliche, verlaessliche Quelle
- * bestehen, ist aber NICHT mehr die einzige - siehe searchBierBrochureIds()
+ * bestehen, ist aber NICHT mehr die einzige - siehe searchBrochureIds()
  * weiter unten fuer die markenunabhaengige Vollstaendigkeits-Ergaenzung.
  */
 const KAUFDA_SOURCES = [
@@ -74,7 +74,7 @@ const KAUFDA_SOURCES = [
   "https://www.kaufda.de/Leipzig/Angebote/Meisterbraeu",
 ];
 
-type KaufdaOfferItem = {
+export type KaufdaOfferItem = {
   id?: string;
   publisherName?: string;
   title?: string;
@@ -150,7 +150,7 @@ function normalizeBrandName(brand: string): string {
   return withoutBierSuffix || trimmed;
 }
 
-function extractNextData(html: string): KaufdaNextData | null {
+export function extractNextData(html: string): KaufdaNextData | null {
   const match = html.match(
     /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
   );
@@ -169,7 +169,7 @@ function extractNextData(html: string): KaufdaNextData | null {
  * kaufda.de bestaetigt. lat/lng/zip sind die bereits verwendeten
  * Leipzig-Werte.
  */
-function buildOfferUrlFromParts(
+export function buildOfferUrlFromParts(
   brochureId: string | undefined,
   page: number | undefined,
   productId: string | undefined
@@ -194,7 +194,7 @@ function buildOfferUrlFromParts(
   return `https://www.kaufda.de/contentViewer/static/${brochureId}?${params.toString()}`;
 }
 
-function buildOfferUrl(item: KaufdaOfferItem): string | null {
+export function buildOfferUrl(item: KaufdaOfferItem): string | null {
   return buildOfferUrlFromParts(item.parentContent?.id, item.parentContent?.page?.number, item.id);
 }
 
@@ -210,7 +210,7 @@ type ExtractedOffer = {
 };
 
 /** Parst ein ISO-Datum aus den kaufda.de-Daten, oder null bei Fehlern/Fehlen. */
-function parseDate(value: string | undefined): Date | null {
+export function parseDate(value: string | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -288,7 +288,7 @@ type KaufdaBrochureOfferContent = {
   }[];
 };
 
-type KaufdaBrochurePagesResponse = {
+export type KaufdaBrochurePagesResponse = {
   contents?: {
     offers?: {
       content?: KaufdaBrochureOfferContent;
@@ -304,7 +304,7 @@ type KaufdaBrochurePagesResponse = {
  * (publicationProfiles[0].validity) statt nur des groben Prospekt-
  * Zeitraums.
  */
-async function fetchBrochurePages(brochureId: string): Promise<KaufdaBrochurePagesResponse> {
+export async function fetchBrochurePages(brochureId: string): Promise<KaufdaBrochurePagesResponse> {
   const url = `https://content-viewer-be.kaufda.de/v1/brochures/${brochureId}/pages?partner=kaufda_web&brochureKey=&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}`;
   const res = await fetch(url, {
     headers: { "User-Agent": KAUFDA_USER_AGENT, Accept: "application/json" },
@@ -319,7 +319,7 @@ async function fetchBrochurePages(brochureId: string): Promise<KaufdaBrochurePag
  * "DE-1496"/"Bier" enthalten, egal welche Bier-Unterkategorie (Fassbier,
  * Weissbier, Biermarken, ...) oder Marke. Das unterscheidet echtes Bier
  * von anderen, ebenfalls im Kasten verkauften Getraenken (Cola, Limonade,
- * Spirituosen), die searchBierBrochureIds() zwangslaeufig mitbringt: ein
+ * Spirituosen), die searchBrochureIds() zwangslaeufig mitbringt: ein
  * ganzer Prospekt gilt dort schon als Treffer, wenn irgendwo darin ein
  * Bier-Angebot steckt - per echtem Beispiel des Nutzers bestaetigt (Coca-
  * Cola, Limoncello, Jaegermeister im selben METRO-Prospekt wie mehrere
@@ -410,11 +410,11 @@ type KaufdaSearchResponse = {
  * Krombacher-Angebot (per Nutzer-Beispiel bestaetigt) lag erst ganz am
  * Ende der Scroll-Ergebnisse und wurde durch dieses Limit abgeschnitten.
  */
-async function searchBierBrochureIds(): Promise<Set<string>> {
+export async function searchBrochureIds(query: string): Promise<Set<string>> {
   const ids = new Set<string>();
   const limit = 24;
   for (let offset = 0; offset < 5000; offset += limit) {
-    const url = `https://www.kaufda.de/api/search?query=Bier&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}&offset=${offset}&limit=${limit}`;
+    const url = `https://www.kaufda.de/api/search?query=${encodeURIComponent(query)}&lat=${KAUFDA_LEIPZIG_LAT}&lng=${KAUFDA_LEIPZIG_LNG}&offset=${offset}&limit=${limit}`;
     const res = await fetch(url, {
       headers: { "User-Agent": KAUFDA_USER_AGENT, Accept: "application/json" },
     });
@@ -429,7 +429,7 @@ async function searchBierBrochureIds(): Promise<Set<string>> {
   return ids;
 }
 
-async function fetchText(url: string): Promise<string> {
+export async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
       "User-Agent": KAUFDA_USER_AGENT,
@@ -454,7 +454,7 @@ async function fetchText(url: string): Promise<string> {
 const HIT_LEIPZIG_OFFERS_URL = "https://www.hit.de/maerkte/leipzig/angebote?kategorien=1803";
 const HIT_STORE_NAME = "HIT";
 
-type HitLeaflet = {
+export type HitLeaflet = {
   id?: number;
   headline?: string;
   text?: string;
@@ -500,7 +500,7 @@ type ExtractHitLeafletsResult = {
   rawAttributeCount: number;
 };
 
-function extractHitLeaflets(html: string): ExtractHitLeafletsResult {
+export function extractHitLeaflets(html: string): ExtractHitLeafletsResult {
   const leaflets: HitLeaflet[] = [];
   // Der JSON-Inhalt ist vollstaendig entity-escaped (siehe decodeHtmlEntities()
   // oben) - ein literales "{" kommt im Rohtext also NICHT vor, deshalb darf
@@ -865,7 +865,7 @@ export async function syncBeerDeals(): Promise<BeerDealsSyncResult> {
     if (deal.brochureId) brochureIds.add(deal.brochureId);
   }
   try {
-    for (const id of await searchBierBrochureIds()) brochureIds.add(id);
+    for (const id of await searchBrochureIds("Bier")) brochureIds.add(id);
   } catch (err) {
     errors.push(`Bier-Suche: ${err instanceof Error ? err.message : String(err)}`);
   }

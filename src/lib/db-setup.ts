@@ -152,6 +152,31 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `ALTER TABLE "Settings" ADD COLUMN "kastenPerTraining" INTEGER NOT NULL DEFAULT 1`,
     ],
   },
+  {
+    name: "20261112120000_sparkling_deals",
+    statements: [
+      `CREATE TABLE "SparklingDeal" (
+        "id" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "details" TEXT,
+        "store" TEXT NOT NULL,
+        "price" DOUBLE PRECISION NOT NULL,
+        "sourceUrl" TEXT NOT NULL,
+        "offerUrl" TEXT,
+        "validFrom" TIMESTAMP(3),
+        "validUntil" TIMESTAMP(3),
+        "fetchedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "SparklingDeal_pkey" PRIMARY KEY ("id")
+      )`,
+      `CREATE TABLE "SparklingDealsConfig" (
+        "id" INTEGER NOT NULL DEFAULT 1,
+        "lastSyncAt" TIMESTAMP(3),
+        "lastSyncOk" BOOLEAN NOT NULL DEFAULT false,
+        "lastSyncMsg" TEXT,
+        CONSTRAINT "SparklingDealsConfig_pkey" PRIMARY KEY ("id")
+      )`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {
