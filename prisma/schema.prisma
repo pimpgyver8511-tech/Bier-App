@@ -175,4 +175,6 @@ model SparklingDealsConfig {
   lastSyncAt  DateTime?
   lastSyncOk  Boolean   @default(false)
   lastSyncMsg String?
+  // JSON (SparklingSyncDebug): aussortierte Angebote usw. fuer die Admin-Diagnose
+  lastSyncDebug String?
 }

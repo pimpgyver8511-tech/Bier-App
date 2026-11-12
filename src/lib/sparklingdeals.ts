@@ -41,7 +41,21 @@ const KAUFDA_SPARKLING_SOURCES = [
   "Moet-Chandon",
 ].map((slug) => `https://www.kaufda.de/Leipzig/Angebote/${slug}`);
 
-const KAUFDA_SEARCH_QUERIES = ["Sekt", "Prosecco"];
+// Neben den Gattungsbegriffen auch die gaengigen Marken: die kaufda-Suche
+// findet einen Prospekt nur, wenn der Suchbegriff im Angebot vorkommt - ein
+// "Fürst von Metternich Riesling trocken" ohne das Wort "Sekt" bliebe sonst
+// unsichtbar, wenn im selben Prospekt kein anderes Sekt-Angebot steht.
+const KAUFDA_SEARCH_QUERIES = [
+  "Sekt",
+  "Prosecco",
+  "Schaumwein",
+  "Metternich",
+  "Rotkäppchen",
+  "Söhnlein",
+  "Henkell",
+  "Mumm",
+  "Freixenet",
+];
 
 // Ohne Kategorie-Filter: Sekt liegt bei HIT nicht zwingend in derselben
 // Prospekt-Kategorie wie Bier ("Getraenke", 1803).
@@ -52,7 +66,7 @@ function normalizeText(value: string): string {
     .toLowerCase()
     .replace(/ß/g, "ss")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 const SPARKLING_KEYWORDS = [
@@ -70,21 +84,22 @@ const SPARKLING_KEYWORDS = [
 ];
 
 // Typische Sekt-Marken, deren Angebotstext nicht immer selbst "Sekt" o.ae.
-// enthaelt (z.B. "Henkell Trocken", "Söhnlein Brillant").
-const SPARKLING_BRANDS = [
-  "rotkappchen",
-  "freixenet",
-  "mumm",
+// enthaelt (z.B. "Henkell Trocken", "Söhnlein Brillant"). Reine Sekt-Marken
+// gelten auch dann als Sekt, wenn im Text/der Kategorie "Wein" steht (z.B.
+// Kategorie "Wein & Sekt"); bei Marken, die auch Stillwein bzw. ganz andere
+// Produkte fuehren, braucht es zusaetzlich einen Getraenke-Hinweis.
+const PURE_SPARKLING_BRANDS = [
+  "metternich",
   "henkell",
   "sohnlein",
   "kupferberg",
-  "wachenheim",
-  "metternich",
+  "mumm",
   "mionetto",
   "moet",
   "veuve clicquot",
   "kessler",
 ];
+const MIXED_SPARKLING_BRANDS = ["rotkappchen", "freixenet", "wachenheim"];
 
 // Treffer auf die Stichworte oben, die aber kein Getraenk sind (Insekten-
 // schutz enthaelt "sekt", Sektglaeser, Champagner-Trueffel, ...).
@@ -129,23 +144,42 @@ function parseVolumes(cleanedText: string): number[] {
   return volumes;
 }
 
-function isSparkling(rawText: string): boolean {
+type Verdict = { ok: true } | { ok: false; reason: string };
+
+const OK: Verdict = { ok: true };
+
+/** Erwaehnt der Text ueberhaupt Sekt/eine Sekt-Marke? Nur dann lohnt ein Diagnose-Eintrag. */
+function mentionsSparkling(rawText: string): boolean {
   const text = normalizeText(rawText);
-  if (NON_DRINK_WORDS.some((w) => text.includes(w))) return false;
-  if (FOOD_WORDS.some((w) => text.includes(w))) return false;
+  return [...SPARKLING_KEYWORDS, ...PURE_SPARKLING_BRANDS, ...MIXED_SPARKLING_BRANDS].some((w) =>
+    text.includes(w)
+  );
+}
+
+function classifySparkling(rawText: string): Verdict {
+  const text = normalizeText(rawText);
+  const nonDrink = NON_DRINK_WORDS.find((w) => text.includes(w));
+  if (nonDrink) return { ok: false, reason: `kein Getränk („${nonDrink}“)` };
+  const food = FOOD_WORDS.find((w) => text.includes(w));
+  if (food) return { ok: false, reason: `Lebensmittel („${food}“)` };
   const cleaned = stripUnitPrices(text);
   const volumes = parseVolumes(cleaned);
   // Gewichtsangabe (z.B. "150-g-Pckg.") ohne Literangabe = Lebensmittel.
-  if (volumes.length === 0 && /\d\s*-?\s*(?:g|kg)(?![a-z])|pckg|packung/.test(cleaned)) return false;
-  if (SPARKLING_KEYWORDS.some((w) => text.includes(w))) return true;
-  if (SPARKLING_BRANDS.some((b) => text.includes(b))) {
-    // Reine Markentreffer ohne Sekt-Stichwort: Stillwein derselben Marke
-    // (z.B. "Rotkäppchen Qualitätswein") nicht mitnehmen, und nur, wenn
-    // der Text erkennbar ein Getraenk beschreibt (Menge, Flasche, Geschmack).
-    if (cleaned.replace(/schaumwein|perlwein/g, "").includes("wein")) return false;
-    return volumes.length > 0 || /flasche|\bfl\b|trocken|brut|\bdry\b|mild|\brose\b/.test(cleaned);
+  if (volumes.length === 0 && /\d\s*-?\s*(?:g|kg)(?![a-z])|pckg|packung/.test(cleaned)) {
+    return { ok: false, reason: "Lebensmittel (Gewichtsangabe)" };
   }
-  return false;
+  if (SPARKLING_KEYWORDS.some((w) => text.includes(w))) return OK;
+  if (PURE_SPARKLING_BRANDS.some((b) => text.includes(b))) return OK;
+  if (MIXED_SPARKLING_BRANDS.some((b) => text.includes(b))) {
+    // Stillwein derselben Marke (z.B. "Rotkäppchen Qualitätswein") nicht
+    // mitnehmen, und nur, wenn der Text erkennbar ein Getraenk beschreibt.
+    if (cleaned.replace(/schaumwein|perlwein/g, "").includes("wein")) {
+      return { ok: false, reason: "vermutlich Stillwein" };
+    }
+    if (volumes.length > 0 || /flasche|\bfl\b|trocken|brut|\bdry\b|mild|\brose\b/.test(cleaned)) return OK;
+    return { ok: false, reason: "kein Getränk erkennbar" };
+  }
+  return { ok: false, reason: "kein Sekt" };
 }
 
 const MIN_BOTTLE_LITERS = 0.75;
@@ -159,13 +193,15 @@ const MIN_BOTTLE_LITERS = 0.75;
  * (Sekt gibt es fast immer als 0,75 l), ausser sie heissen ausdruecklich
  * Piccolo/Pikkolo.
  */
-function isLargeEnough(rawText: string): boolean {
+function checkBottleSize(rawText: string): Verdict {
   const text = stripUnitPrices(normalizeText(rawText));
-  if (/pikkolo|piccolo/.test(text)) return false;
+  if (/pikkolo|piccolo/.test(text)) return { ok: false, reason: "Piccolo" };
   const volumes = parseVolumes(text);
-  if (volumes.length === 0) return true;
+  if (volumes.length === 0) return OK;
+  const largest = Math.max(...volumes);
   // Kleine Toleranz fuer Rundung (z.B. "0,7499" durch Umrechnung).
-  return Math.max(...volumes) >= MIN_BOTTLE_LITERS - 0.001;
+  if (largest >= MIN_BOTTLE_LITERS - 0.001) return OK;
+  return { ok: false, reason: `zu klein (${String(largest).replace(".", ",")} l)` };
 }
 
 function buildTitle(brand: string | undefined, name: string | undefined): string {
@@ -191,6 +227,9 @@ function isPlausiblePrice(price: number | undefined): price is number {
   return typeof price === "number" && Number.isFinite(price) && price >= 1 && price <= 80;
 }
 
+type Rejection = { title: string; store: string; reason: string };
+type RejectFn = (r: Rejection) => void;
+
 type SparklingOffer = {
   id: string;
   title: string;
@@ -204,14 +243,42 @@ type SparklingOffer = {
   validUntil: Date | null;
 };
 
-function extractKaufdaPageOffers(html: string, sourceUrl: string): SparklingOffer[] {
+/**
+ * Gemeinsame Pruefung fuer alle Quellen: liefert true, wenn das Angebot
+ * uebernommen wird, und meldet Sekt-verdaechtige, aber aussortierte
+ * Angebote samt Grund an reject() (fuer die Admin-Diagnose).
+ */
+function accept(
+  text: string,
+  sizeText: string,
+  title: string,
+  store: string | undefined,
+  price: number | undefined,
+  reject: RejectFn
+): boolean {
+  const verdict = classifySparkling(text);
+  const size = verdict.ok ? checkBottleSize(sizeText) : verdict;
+  const priceOk = isPlausiblePrice(price);
+  if (verdict.ok && size.ok && priceOk) return true;
+  if (mentionsSparkling(text)) {
+    const reason = !verdict.ok
+      ? verdict.reason
+      : !size.ok
+        ? size.reason
+        : `Preis ungewöhnlich (${price ?? "?"} €)`;
+    reject({ title: title || "(ohne Titel)", store: store ?? "?", reason });
+  }
+  return false;
+}
+
+function extractKaufdaPageOffers(html: string, sourceUrl: string, reject: RejectFn): SparklingOffer[] {
   const items = extractNextData(html)?.props?.pageProps?.pageInformation?.offers?.main?.items ?? [];
   const results: SparklingOffer[] = [];
   for (const item of items) {
     const text = [item.brand, item.title, item.description].filter(Boolean).join(" ");
-    if (!isSparkling(text) || !isLargeEnough(text)) continue;
     const price = item.prices?.mainPrice;
     const title = buildTitle(item.brand, item.title);
+    if (!accept(text, text, title, item.publisherName, price, reject)) continue;
     if (!item.id || !item.publisherName || !title || !isPlausiblePrice(price)) continue;
     results.push({
       id: `kaufda-${item.id}`,
@@ -229,7 +296,7 @@ function extractKaufdaPageOffers(html: string, sourceUrl: string): SparklingOffe
   return results;
 }
 
-function extractKaufdaBrochureOffers(data: KaufdaBrochurePagesResponse): SparklingOffer[] {
+function extractKaufdaBrochureOffers(data: KaufdaBrochurePagesResponse, reject: RejectFn): SparklingOffer[] {
   const results: SparklingOffer[] = [];
   for (const pageEntry of data.contents ?? []) {
     for (const offer of pageEntry.offers ?? []) {
@@ -238,14 +305,13 @@ function extractKaufdaBrochureOffers(data: KaufdaBrochurePagesResponse): Sparkli
       if (!content || !product) continue;
       const description = product.description?.map((d) => d.paragraph ?? "").join("\n");
       const categories = (product.categoryPaths ?? []).map((c) => c.name ?? "").join(" ");
-      if (!isSparkling([product.brandName, product.name, description, categories].filter(Boolean).join(" "))) {
-        continue;
-      }
-      if (!isLargeEnough([product.name, description].filter(Boolean).join(" "))) continue;
       const salesPrice = content.deals?.find((d) => d.type === "SALES_PRICE");
       const price = salesPrice?.min ?? salesPrice?.max;
       const store = content.publisher?.name;
       const title = buildTitle(product.brandName, product.name);
+      const text = [product.brandName, product.name, description, categories].filter(Boolean).join(" ");
+      const sizeText = [product.name, description].filter(Boolean).join(" ");
+      if (!accept(text, sizeText, title, store, price, reject)) continue;
       if (!content.id || !store || !title || !isPlausiblePrice(price)) continue;
       const brochureId = content.parentContent?.id;
       const validity = content.publicationProfiles?.[0]?.validity;
@@ -266,18 +332,21 @@ function extractKaufdaBrochureOffers(data: KaufdaBrochurePagesResponse): Sparkli
   return results;
 }
 
-function extractHitSparklingOffers(html: string): { offers: SparklingOffer[]; leafletCount: number } {
+function extractHitSparklingOffers(
+  html: string,
+  reject: RejectFn
+): { offers: SparklingOffer[]; leafletCount: number } {
   const { leaflets } = extractHitLeaflets(html);
   const results: SparklingOffer[] = [];
   for (const leaflet of leaflets) {
     if (!leaflet.id || !leaflet.headline) continue;
     const text = `${leaflet.headline} ${leaflet.text ?? ""}`;
-    if (!isSparkling(text) || !isLargeEnough(text)) continue;
     const price = Number(leaflet.price);
-    if (!isPlausiblePrice(price)) continue;
+    const title = leaflet.headline.trim().replace(/\s*\n\s*/g, " ");
+    if (!accept(text, text, title, "HIT", price, reject)) continue;
     results.push({
       id: `hit-${leaflet.id}`,
-      title: leaflet.headline.trim().replace(/\s*\n\s*/g, " "),
+      title,
       details: cleanDetails(leaflet.text),
       store: "HIT",
       price,
@@ -295,18 +364,36 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Was beim letzten Abgleich aussortiert wurde - nur fuer die Admin-Diagnose. */
+export type SparklingSyncDebug = {
+  rejected: Rejection[];
+  notYetValid: { title: string; store: string; price: number; validFrom: string }[];
+  stores: { store: string; count: number }[];
+  queries: { query: string; brochures: number }[];
+  errors: string[];
+};
+
+const MAX_DEBUG_ENTRIES = 80;
+
 export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
   const collected = new Map<string, SparklingOffer>();
   const errors: string[] = [];
+  const rejectedByKey = new Map<string, Rejection>();
+  const reject: RejectFn = (r) => {
+    const key = `${normalizeText(r.title)}|${normalizeText(r.store)}`;
+    if (!rejectedByKey.has(key)) rejectedByKey.set(key, r);
+  };
 
   // Laeuft parallel zu den kaufda-Abrufen und wird erst spaeter ausgewertet -
   // allSettled statt eines nackten Promise, damit ein frueher Fehlschlag
   // nicht als unbehandelte Rejection endet, bevor er unten abgefragt wird.
-  const hitPromise = Promise.allSettled([fetchText(HIT_ALL_OFFERS_URL).then(extractHitSparklingOffers)]);
+  const hitPromise = Promise.allSettled([
+    fetchText(HIT_ALL_OFFERS_URL).then((html) => extractHitSparklingOffers(html, reject)),
+  ]);
   const searchPromise = Promise.allSettled(KAUFDA_SEARCH_QUERIES.map((q) => searchBrochureIds(q)));
 
   const pageResults = await Promise.allSettled(
-    KAUFDA_SPARKLING_SOURCES.map(async (url) => extractKaufdaPageOffers(await fetchText(url), url))
+    KAUFDA_SPARKLING_SOURCES.map(async (url) => extractKaufdaPageOffers(await fetchText(url), url, reject))
   );
   let pageHits = 0;
   pageResults.forEach((result, i) => {
@@ -337,18 +424,22 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
 
   const brochureIds = new Set<string>();
   for (const o of collected.values()) if (o.brochureId) brochureIds.add(o.brochureId);
-  for (const result of await searchPromise) {
+  const queryStats: SparklingSyncDebug["queries"] = [];
+  (await searchPromise).forEach((result, i) => {
+    const query = KAUFDA_SEARCH_QUERIES[i];
     if (result.status === "fulfilled") {
       for (const id of result.value) brochureIds.add(id);
+      queryStats.push({ query, brochures: result.value.size });
     } else {
-      errors.push(`kaufda-Suche: ${errorText(result.reason)}`);
+      errors.push(`kaufda-Suche „${query}“: ${errorText(result.reason)}`);
+      queryStats.push({ query, brochures: -1 });
     }
-  }
+  });
 
   // Prospekt-Daten haben die genauere (tagesgenaue) Gueltigkeit und
   // ueberschreiben deshalb Eintraege mit gleicher Angebots-ID von oben.
   const brochureResults = await Promise.allSettled(
-    Array.from(brochureIds, async (id) => extractKaufdaBrochureOffers(await fetchBrochurePages(id)))
+    Array.from(brochureIds, async (id) => extractKaufdaBrochureOffers(await fetchBrochurePages(id), reject))
   );
   let brochureHits = 0;
   for (const result of brochureResults) {
@@ -382,13 +473,35 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
     }));
 
   const now = new Date();
+  // Bereits gefundene Angebote nicht zusaetzlich als "aussortiert" fuehren
+  // (z.B. Prospektseite abgelehnt, aber kaufda-Markenseite uebernommen).
+  const acceptedKeys = new Set(deals.map((d) => `${normalizeText(d.title)}|${normalizeText(d.store)}`));
+  const storeCounts = new Map<string, number>();
+  for (const d of deals) storeCounts.set(d.store, (storeCounts.get(d.store) ?? 0) + 1);
+  const debug: SparklingSyncDebug = {
+    rejected: Array.from(rejectedByKey.entries())
+      .filter(([key]) => !acceptedKeys.has(key))
+      .map(([, r]) => r)
+      .slice(0, MAX_DEBUG_ENTRIES),
+    notYetValid: deals
+      .filter((d) => d.validFrom && d.validFrom > now)
+      .map((d) => ({ title: d.title, store: d.store, price: d.price, validFrom: d.validFrom!.toISOString() }))
+      .slice(0, MAX_DEBUG_ENTRIES),
+    stores: Array.from(storeCounts, ([store, count]) => ({ store, count })).sort((a, b) =>
+      a.store.localeCompare(b.store, "de")
+    ),
+    queries: queryStats,
+    errors: errors.slice(0, 30),
+  };
+  const lastSyncDebug = JSON.stringify(debug);
+
   if (deals.length === 0) {
     const message =
       "Keine Angebote gefunden." + (errors.length ? " Details: " + errors.slice(0, 10).join("; ") : "");
     await prisma.sparklingDealsConfig.upsert({
       where: { id: 1 },
-      update: { lastSyncAt: now, lastSyncOk: false, lastSyncMsg: message },
-      create: { id: 1, lastSyncAt: now, lastSyncOk: false, lastSyncMsg: message },
+      update: { lastSyncAt: now, lastSyncOk: false, lastSyncMsg: message, lastSyncDebug },
+      create: { id: 1, lastSyncAt: now, lastSyncOk: false, lastSyncMsg: message, lastSyncDebug },
     });
     return { ok: false, message, count: 0 };
   }
@@ -405,8 +518,8 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
     hitInfo;
   await prisma.sparklingDealsConfig.upsert({
     where: { id: 1 },
-    update: { lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message },
-    create: { id: 1, lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message },
+    update: { lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message, lastSyncDebug },
+    create: { id: 1, lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message, lastSyncDebug },
   });
   return { ok: true, message, count: deals.length };
 }
@@ -437,4 +550,13 @@ export async function getAllSparklingDeals(): Promise<SparklingDeal[]> {
 
 export async function getSparklingDealsConfig() {
   return prisma.sparklingDealsConfig.findUnique({ where: { id: 1 } });
+}
+
+export function parseSparklingSyncDebug(raw: string | null | undefined): SparklingSyncDebug | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SparklingSyncDebug;
+  } catch {
+    return null;
+  }
 }
