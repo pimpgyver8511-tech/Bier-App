@@ -34,21 +34,23 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
 
   if (deals.length === 0) {
     return (
-      <p className="text-muted text-sm px-5 sm:px-6 py-6">
+      <p className="text-muted text-sm px-4 sm:px-6 py-6">
         Noch keine Angebote geladen – die Liste wird täglich automatisch aktualisiert.
       </p>
     );
   }
 
+  const priceLabel = (d: SparklingDeal) => `${d.price.toFixed(2).replace(".", ",")} €`;
+
   return (
     <>
-      <div className="px-5 sm:px-6 py-3 border-b border-border flex items-center gap-3 flex-wrap text-sm">
+      <div className="px-4 sm:px-6 py-3 border-b border-border flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
         <label className="flex items-center gap-1.5">
-          <span className="text-muted">Händler:</span>
+          <span className="text-muted shrink-0">Händler:</span>
           <select
             value={storeFilter}
             onChange={(e) => setStoreFilter(e.target.value)}
-            className="border border-border rounded-md px-2 py-1 bg-surface"
+            className="border border-border rounded-md px-2 py-1.5 bg-surface flex-1 sm:flex-none min-w-0"
           >
             <option value="">Alle</option>
             {stores.map((s) => (
@@ -58,20 +60,71 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
             ))}
           </select>
         </label>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Suchen, z. B. Rotkäppchen"
-          className="border border-border rounded-md px-2 py-1 bg-surface min-w-0 flex-1 sm:flex-none sm:w-56"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Suchen, z. B. Rotkäppchen"
+            className="border border-border rounded-md px-2 py-1.5 bg-surface min-w-0 flex-1 sm:w-56"
+          />
+          <button
+            type="button"
+            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+            className="sm:hidden border border-border rounded-md px-2 py-1.5 bg-surface whitespace-nowrap"
+          >
+            Preis {sortDir === "asc" ? "↑" : "↓"}
+          </button>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Handy: Karten statt Tabelle, damit nichts seitlich abgeschnitten wird */}
+      <ul className="sm:hidden divide-y divide-border">
+        {visible.map((d) => (
+          <li key={d.id} className={`px-4 py-3 ${d.id === cheapestId ? "bg-brand-light" : ""}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium leading-snug">{d.title}</p>
+                {d.details && <p className="text-xs text-muted mt-0.5">{d.details}</p>}
+              </div>
+              <p className="font-bold text-brand-dark whitespace-nowrap text-base">
+                {priceLabel(d)}
+                {d.id === cheapestId && " 🏆"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="text-sm text-muted mr-auto">{d.store}</span>
+              {d.offerUrl && (
+                <a
+                  href={d.offerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="badge badge-blue border-0 font-sans py-1"
+                >
+                  📄 Prospekt
+                </a>
+              )}
+              <a
+                href={mapsUrl(d.store)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="badge badge-green border-0 font-sans py-1"
+              >
+                🧭 Route
+              </a>
+            </div>
+          </li>
+        ))}
+        {visible.length === 0 && (
+          <li className="px-4 py-6 text-center text-muted text-sm">Keine Angebote für diese Auswahl.</li>
+        )}
+      </ul>
+
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted border-b border-border">
-              <th className="px-5 sm:px-6 py-2.5 font-medium">Produkt</th>
+              <th className="px-6 py-2.5 font-medium">Produkt</th>
               <th className="px-3 py-2.5 font-medium">Händler</th>
               <th className="px-3 py-2.5 font-medium">
                 <button
@@ -92,13 +145,14 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
                 key={d.id}
                 className={`border-b border-border last:border-0 ${d.id === cheapestId ? "bg-brand-light" : ""}`}
               >
-                <td className="px-5 sm:px-6 py-3">
+                <td className="px-6 py-3">
                   <p className="font-medium">{d.title}</p>
                   {d.details && <p className="text-xs text-muted mt-0.5">{d.details}</p>}
                 </td>
                 <td className="px-3 py-3 text-muted">{d.store}</td>
                 <td className="px-3 py-3 font-semibold text-brand-dark whitespace-nowrap">
-                  {d.price.toFixed(2).replace(".", ",")} €{d.id === cheapestId && " 🏆"}
+                  {priceLabel(d)}
+                  {d.id === cheapestId && " 🏆"}
                 </td>
                 <td className="px-3 py-3">
                   {d.offerUrl && (
@@ -126,7 +180,7 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 sm:px-6 py-6 text-center text-muted">
+                <td colSpan={5} className="px-6 py-6 text-center text-muted">
                   Keine Angebote für diese Auswahl.
                 </td>
               </tr>

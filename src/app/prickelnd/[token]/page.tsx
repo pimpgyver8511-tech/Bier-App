@@ -41,7 +41,7 @@ export default async function SparklingDealsPage({ params }: PageProps<"/prickel
 
   return (
     <section className="card overflow-hidden">
-      <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+      <div className="px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-bold">🥂 Gingers World</h1>
           <p className="text-xs text-muted mt-0.5">Aktuelle Angebote in Leipzig, günstigste zuerst</p>
@@ -51,7 +51,7 @@ export default async function SparklingDealsPage({ params }: PageProps<"/prickel
 
       <SparklingDealsTable deals={deals} />
 
-      <div className="px-5 sm:px-6 py-2.5 text-xs text-muted bg-surface border-t border-border">
+      <div className="px-4 sm:px-6 py-2.5 text-xs text-muted bg-surface border-t border-border">
         {config?.lastSyncAt ? (
           <>
             Stand: {formatDateTime(config.lastSyncAt)}

@@ -107,14 +107,43 @@ const NON_DRINK_WORDS = [
   "susswaren",
 ];
 
+// Lebensmittel mit Sekt-Markennamen (Rotkaeppchen ist auch eine Kaesemarke,
+// per echtem Nutzer-Screenshot bestaetigt: "Rotkäppchen Mozzarella Sticks").
+const FOOD_WORDS = ["mozzarella", "kase", "camembert", "sticks", "pizza", "chips", "snack"];
+
+/** Normalisierter Text ohne Grundpreis-Angaben wie "(1 l = 4,65)". */
+function stripUnitPrices(text: string): string {
+  return text
+    .replace(/\(?\s*(?:1\s*-?\s*)?(?:liter|ltr|l|kg)\s*=\s*[\d.,]+(?:\s*-\s*[\d.,]+)?\s*(?:€|eur)?\s*\)?/g, " ")
+    .replace(/(?:liter|grund)-?preis[^)]*/g, " ");
+}
+
+/** Alle Fluessigkeits-Mengenangaben im Text, in Litern. */
+function parseVolumes(cleanedText: string): number[] {
+  const volumes: number[] = [];
+  const unitFactor: Record<string, number> = { l: 1, ltr: 1, liter: 1, cl: 0.01, ml: 0.001 };
+  for (const m of cleanedText.matchAll(/(\d+(?:[.,]\d+)?)\s*-?\s*(liter|ltr|ml|cl|l)(?![a-z])/g)) {
+    const value = Number(m[1].replace(",", "."));
+    if (Number.isFinite(value) && value > 0) volumes.push(value * unitFactor[m[2]]);
+  }
+  return volumes;
+}
+
 function isSparkling(rawText: string): boolean {
   const text = normalizeText(rawText);
   if (NON_DRINK_WORDS.some((w) => text.includes(w))) return false;
+  if (FOOD_WORDS.some((w) => text.includes(w))) return false;
+  const cleaned = stripUnitPrices(text);
+  const volumes = parseVolumes(cleaned);
+  // Gewichtsangabe (z.B. "150-g-Pckg.") ohne Literangabe = Lebensmittel.
+  if (volumes.length === 0 && /\d\s*-?\s*(?:g|kg)(?![a-z])|pckg|packung/.test(cleaned)) return false;
   if (SPARKLING_KEYWORDS.some((w) => text.includes(w))) return true;
   if (SPARKLING_BRANDS.some((b) => text.includes(b))) {
     // Reine Markentreffer ohne Sekt-Stichwort: Stillwein derselben Marke
-    // (z.B. "Rotkäppchen Qualitätswein") nicht mitnehmen.
-    return !text.replace(/schaumwein|perlwein/g, "").includes("wein");
+    // (z.B. "Rotkäppchen Qualitätswein") nicht mitnehmen, und nur, wenn
+    // der Text erkennbar ein Getraenk beschreibt (Menge, Flasche, Geschmack).
+    if (cleaned.replace(/schaumwein|perlwein/g, "").includes("wein")) return false;
+    return volumes.length > 0 || /flasche|\bfl\b|trocken|brut|\bdry\b|mild|\brose\b/.test(cleaned);
   }
   return false;
 }
@@ -131,17 +160,9 @@ const MIN_BOTTLE_LITERS = 0.75;
  * Piccolo/Pikkolo.
  */
 function isLargeEnough(rawText: string): boolean {
-  const text = normalizeText(rawText)
-    .replace(/\(?\s*(?:1\s*-?\s*)?(?:liter|ltr|l|kg)\s*=\s*[\d.,]+(?:\s*-\s*[\d.,]+)?\s*(?:€|eur)?\s*\)?/g, " ")
-    .replace(/(?:liter|grund)-?preis[^)]*/g, " ");
+  const text = stripUnitPrices(normalizeText(rawText));
   if (/pikkolo|piccolo/.test(text)) return false;
-
-  const volumes: number[] = [];
-  const unitFactor: Record<string, number> = { l: 1, ltr: 1, liter: 1, cl: 0.01, ml: 0.001 };
-  for (const m of text.matchAll(/(\d+(?:[.,]\d+)?)\s*-?\s*(liter|ltr|ml|cl|l)(?![a-z])/g)) {
-    const value = Number(m[1].replace(",", "."));
-    if (Number.isFinite(value) && value > 0) volumes.push(value * unitFactor[m[2]]);
-  }
+  const volumes = parseVolumes(text);
   if (volumes.length === 0) return true;
   // Kleine Toleranz fuer Rundung (z.B. "0,7499" durch Umrechnung).
   return Math.max(...volumes) >= MIN_BOTTLE_LITERS - 0.001;
