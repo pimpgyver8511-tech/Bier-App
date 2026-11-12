@@ -167,6 +167,9 @@ model SparklingDeal {
   offerUrl   String?
   validFrom  DateTime?
   validUntil DateTime?
+  // Nur in einzelnen Filialen erhaeltlich: Filialnamen, mit "|" getrennt
+  // (z.B. "Kaufland Leipzig-Paunsdorf"); leer = ueberall beim Haendler
+  onlyAt     String?
   fetchedAt  DateTime  @default(now())
 }
 

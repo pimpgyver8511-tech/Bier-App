@@ -7,6 +7,29 @@ function mapsUrl(store: string) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${store} Leipzig`)}`;
 }
 
+/** Gibt es das Angebot nur in einer Filiale, fuehrt die Route genau dorthin. */
+function routeTarget(d: SparklingDeal) {
+  return d.onlyAt.length === 1 ? d.onlyAt[0] : d.store;
+}
+
+function shortBranch(name: string) {
+  return name.replace(/^Kaufland\s+/, "").replace(/^Leipzig-/, "");
+}
+
+/** Deutlich sichtbarer Hinweis, wenn ein Angebot nicht in allen Filialen gilt. */
+function OnlyAtBadge({ onlyAt }: { onlyAt: string[] }) {
+  if (onlyAt.length === 0) return null;
+  const label =
+    onlyAt.length === 1
+      ? `Nur in Filiale ${shortBranch(onlyAt[0])}`
+      : `Nur in ${onlyAt.length} Filialen: ${onlyAt.map(shortBranch).join(", ")}`;
+  return (
+    <p className="mt-1">
+      <span className="badge badge-gold border-0 font-sans whitespace-normal text-left rounded-md">📍 {label}</span>
+    </p>
+  );
+}
+
 export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
   const [storeFilter, setStoreFilter] = useState("");
   const [query, setQuery] = useState("");
@@ -26,7 +49,7 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
     const rows = deals.filter(
       (d) =>
         (!storeFilter || d.store === storeFilter) &&
-        (!q || `${d.title} ${d.details ?? ""}`.toLowerCase().includes(q))
+        (!q || `${d.title} ${d.details ?? ""} ${d.onlyAt.join(" ")}`.toLowerCase().includes(q))
     );
     rows.sort((a, b) => (sortDir === "asc" ? a.price - b.price : b.price - a.price));
     return rows;
@@ -86,6 +109,7 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
               <div className="min-w-0">
                 <p className="font-medium leading-snug">{d.title}</p>
                 {d.details && <p className="text-xs text-muted mt-0.5">{d.details}</p>}
+                <OnlyAtBadge onlyAt={d.onlyAt} />
               </div>
               <p className="font-bold text-brand-dark whitespace-nowrap text-base">
                 {priceLabel(d)}
@@ -105,7 +129,7 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
                 </a>
               )}
               <a
-                href={mapsUrl(d.store)}
+                href={mapsUrl(routeTarget(d))}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="badge badge-green border-0 font-sans py-1"
@@ -148,6 +172,7 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
                 <td className="px-6 py-3">
                   <p className="font-medium">{d.title}</p>
                   {d.details && <p className="text-xs text-muted mt-0.5">{d.details}</p>}
+                  <OnlyAtBadge onlyAt={d.onlyAt} />
                 </td>
                 <td className="px-3 py-3 text-muted">{d.store}</td>
                 <td className="px-3 py-3 font-semibold text-brand-dark whitespace-nowrap">
@@ -168,7 +193,7 @@ export function SparklingDealsTable({ deals }: { deals: SparklingDeal[] }) {
                 </td>
                 <td className="px-3 py-3">
                   <a
-                    href={mapsUrl(d.store)}
+                    href={mapsUrl(routeTarget(d))}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="badge badge-green border-0 font-sans hover:brightness-95 transition"

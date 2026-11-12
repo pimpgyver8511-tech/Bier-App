@@ -253,6 +253,8 @@ type SparklingOffer = {
   brochureId: string | null;
   validFrom: Date | null;
   validUntil: Date | null;
+  /** Nur in diesen Filialen (volle Namen); fehlt = ueberall beim Haendler. */
+  onlyAt?: string[];
 };
 
 /**
@@ -419,12 +421,11 @@ function mergeKauflandSparklingOffers(
     }
   }
   const storeCount = pages.length;
-  const offers = Array.from(merged.values(), ({ offer, stores }) => {
-    const where =
-      stores.length < storeCount ? `nur in: ${stores.map((s) => s.replace(/^Leipzig-/, "")).join(", ")}` : null;
-    // "nur in" vorne, damit es beim Kuerzen der Details nicht abgeschnitten wird
-    return { ...offer, details: cleanDetails([where, offer.details].filter(Boolean).join("\n")) };
-  });
+  const offers = Array.from(merged.values(), ({ offer, stores }) => ({
+    ...offer,
+    details: cleanDetails(offer.details ?? undefined),
+    onlyAt: stores.length < storeCount ? stores.map((s) => `Kaufland ${s}`) : undefined,
+  }));
   return { offers, total };
 }
 
@@ -573,6 +574,7 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
       offerUrl: d.offerUrl,
       validFrom: d.validFrom,
       validUntil: d.validUntil,
+      onlyAt: d.onlyAt?.length ? d.onlyAt.join("|") : null,
     }));
 
   const now = new Date();
@@ -635,21 +637,33 @@ export type SparklingDeal = {
   store: string;
   price: number;
   offerUrl: string | null;
+  /** Nur in diesen Filialen erhaeltlich (leer = ueberall beim Haendler). */
+  onlyAt: string[];
 };
 
 /** Aktuell gueltige Angebote, guenstigste zuerst (gleiche Gueltigkeitslogik wie Bier). */
 export async function getAllSparklingDeals(): Promise<SparklingDeal[]> {
   const now = new Date();
-  return prisma.sparklingDeal.findMany({
-    where: {
-      AND: [
-        { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
-        { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
-      ],
-    },
-    orderBy: { price: "asc" },
-    select: { id: true, title: true, details: true, store: true, price: true, offerUrl: true },
-  });
+  const where = {
+    AND: [
+      { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+      { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+    ],
+  };
+  const select = { id: true, title: true, details: true, store: true, price: true, offerUrl: true } as const;
+  try {
+    const rows = await prisma.sparklingDeal.findMany({
+      where,
+      orderBy: { price: "asc" },
+      select: { ...select, onlyAt: true },
+    });
+    return rows.map((r) => ({ ...r, onlyAt: r.onlyAt ? r.onlyAt.split("|").filter(Boolean) : [] }));
+  } catch {
+    // Spalte "onlyAt" evtl. noch nicht angelegt (Admin > Einstellungen >
+    // Datenbank) - die Seite soll fuer die Freundin trotzdem funktionieren.
+    const rows = await prisma.sparklingDeal.findMany({ where, orderBy: { price: "asc" }, select });
+    return rows.map((r) => ({ ...r, onlyAt: [] }));
+  }
 }
 
 export async function getSparklingDealsConfig() {

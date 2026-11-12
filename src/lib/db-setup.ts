@@ -181,6 +181,10 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
     name: "20261112180000_sparkling_sync_debug",
     statements: [`ALTER TABLE "SparklingDealsConfig" ADD COLUMN "lastSyncDebug" TEXT`],
   },
+  {
+    name: "20261112200000_sparkling_only_at",
+    statements: [`ALTER TABLE "SparklingDeal" ADD COLUMN "onlyAt" TEXT`],
+  },
 ];
 
 export type DbSetupResult = {
