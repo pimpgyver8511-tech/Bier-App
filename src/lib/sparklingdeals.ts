@@ -1,9 +1,11 @@
 import {
   extractKauflandOffers,
   fetchKauflandLeafletLinks,
-  KAUFLAND_OFFERS_URL,
+  fetchLeipzigKauflandStores,
   kauflandDay,
+  kauflandOffersUrl,
   tidyKauflandBrand,
+  type KauflandStore,
 } from "@/lib/kaufland";
 import { prisma } from "@/lib/db";
 import {
@@ -370,33 +372,60 @@ function extractHitSparklingOffers(
   return { offers: results, leafletCount: leaflets.length };
 }
 
-function extractKauflandSparklingOffers(
-  html: string,
+/**
+ * Sekt-Angebote aller Leipziger Kaufland-Filialen zusammengefuehrt: gleiche
+ * Artikelnummer zum gleichen Preis = ein Eintrag. Gibt es ein Angebot nicht
+ * in allen Filialen, steht in den Details, wo es das gibt.
+ */
+function mergeKauflandSparklingOffers(
+  pages: { store: KauflandStore; html: string }[],
   leafletLinks: Map<string, string>,
   reject: RejectFn
 ): { offers: SparklingOffer[]; total: number } {
-  const all = extractKauflandOffers(html);
-  const results: SparklingOffer[] = [];
-  for (const offer of all) {
-    const brand = tidyKauflandBrand(offer.title ?? "");
-    const title = buildTitle(brand, offer.subtitle);
-    const text = [offer.title, offer.subtitle, offer.unit, offer.detailDescription].filter(Boolean).join(" ");
-    const sizeText = [offer.subtitle, offer.unit, offer.detailDescription].filter(Boolean).join(" ");
-    if (!accept(text, sizeText, title, "Kaufland", offer.price, reject)) continue;
-    results.push({
-      id: `kaufland-${offer.offerId}`,
-      title,
-      details: cleanDetails([offer.unit, offer.detailDescription].filter(Boolean).join("\n")),
-      store: "Kaufland",
-      price: offer.price as number,
-      sourceUrl: KAUFLAND_OFFERS_URL,
-      offerUrl: (offer.klNr && leafletLinks.get(offer.klNr)) || KAUFLAND_OFFERS_URL,
-      brochureId: null,
-      validFrom: kauflandDay(offer.salesFrom ?? offer.dateFrom, "start"),
-      validUntil: kauflandDay(offer.salesTo ?? offer.dateTo, "end"),
-    });
+  type Entry = { offer: SparklingOffer; stores: string[] };
+  const merged = new Map<string, Entry>();
+  let total = 0;
+  for (const { store, html } of pages) {
+    const all = extractKauflandOffers(html);
+    total += all.length;
+    for (const offer of all) {
+      const brand = tidyKauflandBrand(offer.title ?? "");
+      const title = buildTitle(brand, offer.subtitle);
+      const text = [offer.title, offer.subtitle, offer.unit, offer.detailDescription].filter(Boolean).join(" ");
+      const sizeText = [offer.subtitle, offer.unit, offer.detailDescription].filter(Boolean).join(" ");
+      if (!accept(text, sizeText, title, "Kaufland", offer.price, reject)) continue;
+      const salesFrom = offer.salesFrom ?? offer.dateFrom;
+      const key = `${offer.klNr ?? normalizeText(title)}|${offer.price}|${salesFrom}`;
+      const existing = merged.get(key);
+      if (existing) {
+        if (!existing.stores.includes(store.name)) existing.stores.push(store.name);
+        continue;
+      }
+      merged.set(key, {
+        stores: [store.name],
+        offer: {
+          id: `kaufland-${key}`,
+          title,
+          details: [offer.unit, offer.detailDescription].filter(Boolean).join("\n"),
+          store: "Kaufland",
+          price: offer.price as number,
+          sourceUrl: kauflandOffersUrl(store.id),
+          offerUrl: (offer.klNr && leafletLinks.get(offer.klNr)) || kauflandOffersUrl(store.id),
+          brochureId: null,
+          validFrom: kauflandDay(salesFrom, "start"),
+          validUntil: kauflandDay(offer.salesTo ?? offer.dateTo, "end"),
+        },
+      });
+    }
   }
-  return { offers: results, total: all.length };
+  const storeCount = pages.length;
+  const offers = Array.from(merged.values(), ({ offer, stores }) => {
+    const where =
+      stores.length < storeCount ? `nur in: ${stores.map((s) => s.replace(/^Leipzig-/, "")).join(", ")}` : null;
+    // "nur in" vorne, damit es beim Kuerzen der Details nicht abgeschnitten wird
+    return { ...offer, details: cleanDetails([where, offer.details].filter(Boolean).join("\n")) };
+  });
+  return { offers, total };
 }
 
 function errorText(err: unknown): string {
@@ -429,10 +458,20 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
   const hitPromise = Promise.allSettled([
     fetchText(HIT_ALL_OFFERS_URL).then((html) => extractHitSparklingOffers(html, reject)),
   ]);
-  const kauflandPromise = Promise.allSettled([
-    fetchText(KAUFLAND_OFFERS_URL),
-    fetchKauflandLeafletLinks(),
-  ]);
+  // Alle Leipziger Kaufland-Filialen parallel; die Prospekt-Links reichen von
+  // einer Filiale (Seitenaufbau ist gleich), sonst Link auf die Angebotsseite.
+  const kauflandPromise = fetchLeipzigKauflandStores().then(async (stores) => {
+    const [pages, links] = await Promise.all([
+      Promise.allSettled(stores.map(async (store) => ({ store, html: await fetchText(kauflandOffersUrl(store.id)) }))),
+      fetchKauflandLeafletLinks(stores[0].id).catch((err: unknown) => {
+        errors.push(`Kaufland-Prospekt: ${errorText(err)}`);
+        return new Map<string, string>();
+      }),
+    ]);
+    return { stores, pages, links };
+  });
+  // nicht als unbehandelte Rejection enden lassen, ausgewertet wird unten
+  kauflandPromise.catch(() => {});
   const searchPromise = Promise.allSettled(KAUFDA_SEARCH_QUERIES.map((q) => searchBrochureIds(q)));
 
   const pageResults = await Promise.allSettled(
@@ -470,16 +509,20 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
   // richtige Prospektseite verlinkt.
   const kauflandOffers: SparklingOffer[] = [];
   let kauflandInfo = "";
-  const [kauflandPage, kauflandLinks] = await kauflandPromise;
-  if (kauflandPage.status === "fulfilled") {
-    const links = kauflandLinks.status === "fulfilled" ? kauflandLinks.value : new Map<string, string>();
-    if (kauflandLinks.status === "rejected") errors.push(`Kaufland-Prospekt: ${errorText(kauflandLinks.reason)}`);
-    const { offers, total } = extractKauflandSparklingOffers(kauflandPage.value, links, reject);
+  try {
+    const { stores, pages, links } = await kauflandPromise;
+    const loaded: { store: KauflandStore; html: string }[] = [];
+    pages.forEach((result, i) => {
+      if (result.status === "fulfilled") loaded.push(result.value);
+      else errors.push(`Kaufland ${stores[i].name}: ${errorText(result.reason)}`);
+    });
+    const { offers, total } = mergeKauflandSparklingOffers(loaded, links, reject);
     kauflandOffers.push(...offers);
-    if (total === 0) kauflandInfo = " Kaufland: keine Angebote auf der Seite gefunden.";
-  } else {
-    kauflandInfo = ` Kaufland: ${errorText(kauflandPage.reason)}.`;
-    errors.push(`Kaufland: ${errorText(kauflandPage.reason)}`);
+    kauflandInfo = ` Kaufland: ${loaded.length} von ${stores.length} Leipziger Filialen geladen.`;
+    if (loaded.length > 0 && total === 0) kauflandInfo += " Keine Angebote auf den Seiten gefunden.";
+  } catch (err) {
+    kauflandInfo = ` Kaufland: ${errorText(err)}.`;
+    errors.push(`Kaufland: ${errorText(err)}`);
   }
 
   const brochureIds = new Set<string>();

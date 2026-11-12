@@ -15,13 +15,47 @@ import { fetchText } from "@/lib/beerdeals";
  *   deren Seiten Produkt-Links mit "productDetails.productId" (= "klNr" der
  *   Angebote) enthalten. Daraus wird der Link direkt auf die Prospektseite.
  *
- * Ohne Filialangabe liefert Kaufland eine per IP geschaetzte Filiale, deshalb
- * ist die Leipziger Filiale fest eingetragen.
+ * Ohne Filialangabe liefert Kaufland eine per IP geschaetzte Filiale. Die
+ * Angebote unterscheiden sich je Filiale (Sortimentsumfang), deshalb werden
+ * alle Leipziger Filialen einzeln abgefragt. Die Filialliste kommt aus dem
+ * Kaufland-Filialfinder; die feste Liste unten ist nur der Notnagel.
  */
-export const KAUFLAND_STORE_ID = "DE3140"; // Kaufland Leipzig-Paunsdorf, Paunsdorfer Allee 1
-const KAUFLAND_STORE_NUMBER = KAUFLAND_STORE_ID.replace(/^DE/, "");
-export const KAUFLAND_OFFERS_URL = `https://filiale.kaufland.de/angebote/uebersicht.storeName=${KAUFLAND_STORE_ID}.html`;
-const KAUFLAND_LEAFLETS_URL = `https://filiale.kaufland.de/prospekte.storeName=${KAUFLAND_STORE_ID}.html`;
+export type KauflandStore = { id: string; name: string };
+
+const STORE_FINDER_URL = "https://filiale.kaufland.de/.klstorefinder.json";
+const FALLBACK_LEIPZIG_STORES: KauflandStore[] = [
+  { id: "DE1383", name: "Leipzig-Altlindenau" },
+  { id: "DE2630", name: "Leipzig-Schönau" },
+  { id: "DE2990", name: "Leipzig-Großzschocher" },
+  { id: "DE3140", name: "Leipzig-Paunsdorf" },
+  { id: "DE4110", name: "Leipzig-Heiterblick" },
+  { id: "DE4543", name: "Leipzig-Burghausen" },
+  { id: "DE6360", name: "Leipzig-Möckern" },
+  { id: "DE7460", name: "Leipzig-Gohlis-Süd" },
+  { id: "DE7923", name: "Leipzig-Reudnitz-Thonberg" },
+];
+
+/** Alle Kaufland-Filialen im Stadtgebiet Leipzig (Feld "t" = Ort). */
+export async function fetchLeipzigKauflandStores(): Promise<KauflandStore[]> {
+  try {
+    const res = await fetch(STORE_FINDER_URL, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; BierApp/1.0)", Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as { n?: string; cn?: string; t?: string }[];
+    const stores = data
+      .filter((s) => s.n && s.t === "Leipzig")
+      .map((s) => ({ id: s.n as string, name: (s.cn ?? s.n ?? "").replace(/^Kaufland\s+/, "") }));
+    return stores.length ? stores : FALLBACK_LEIPZIG_STORES;
+  } catch {
+    return FALLBACK_LEIPZIG_STORES;
+  }
+}
+
+export function kauflandOffersUrl(storeId: string): string {
+  return `https://filiale.kaufland.de/angebote/uebersicht.storeName=${storeId}.html`;
+}
+
 const LEAFLET_API = "https://endpoints.leaflets.schwarz/v4/flyer";
 
 export type KauflandOffer = {
@@ -88,13 +122,14 @@ type LeafletResponse = {
  * Prospekte der Filiale. Fehler hier sind nicht schlimm: dann gibt es eben
  * keinen Prospekt-Link.
  */
-export async function fetchKauflandLeafletLinks(): Promise<Map<string, string>> {
+export async function fetchKauflandLeafletLinks(storeId: string): Promise<Map<string, string>> {
   const links = new Map<string, string>();
-  const html = await fetchText(KAUFLAND_LEAFLETS_URL);
+  const storeNumber = storeId.replace(/^DE/, "");
+  const html = await fetchText(`https://filiale.kaufland.de/prospekte.storeName=${storeId}.html`);
   const identifiers = new Set(
     Array.from(
       html.matchAll(/leaflets\.kaufland\.com\/de-DE\/(DE_de_[A-Za-z0-9]+_(\d+)_[A-Za-z0-9]+)/g),
-      (m) => (m[2] === KAUFLAND_STORE_NUMBER ? m[1] : null)
+      (m) => (m[2] === storeNumber ? m[1] : null)
     ).filter((id): id is string => id !== null)
   );
   const results = await Promise.allSettled(
