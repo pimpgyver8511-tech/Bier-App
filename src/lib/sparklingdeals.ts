@@ -67,7 +67,6 @@ const SPARKLING_KEYWORDS = [
   "spumante",
   "frizzante",
   "secco",
-  "pikkolo",
 ];
 
 // Typische Sekt-Marken, deren Angebotstext nicht immer selbst "Sekt" o.ae.
@@ -120,6 +119,34 @@ function isSparkling(rawText: string): boolean {
   return false;
 }
 
+const MIN_BOTTLE_LITERS = 0.75;
+
+/**
+ * Nur normale Flaschen ab 0,75 l (ausdruecklich so gewuenscht) - keine Piccolos/
+ * kleinen Flaschen. Massgeblich ist die Flaschengroesse, nicht die
+ * Gesamtmenge eines Mehrfachpacks ("3 x 0,2 l" fliegt raus). Grundpreis-
+ * Angaben wie "(1 l = 4,65)" werden vorher entfernt, sonst sahe jede kleine
+ * Flasche wie 1 Liter aus. Angebote ganz ohne Mengenangabe bleiben drin
+ * (Sekt gibt es fast immer als 0,75 l), ausser sie heissen ausdruecklich
+ * Piccolo/Pikkolo.
+ */
+function isLargeEnough(rawText: string): boolean {
+  const text = normalizeText(rawText)
+    .replace(/\(?\s*(?:1\s*-?\s*)?(?:liter|ltr|l|kg)\s*=\s*[\d.,]+(?:\s*-\s*[\d.,]+)?\s*(?:€|eur)?\s*\)?/g, " ")
+    .replace(/(?:liter|grund)-?preis[^)]*/g, " ");
+  if (/pikkolo|piccolo/.test(text)) return false;
+
+  const volumes: number[] = [];
+  const unitFactor: Record<string, number> = { l: 1, ltr: 1, liter: 1, cl: 0.01, ml: 0.001 };
+  for (const m of text.matchAll(/(\d+(?:[.,]\d+)?)\s*-?\s*(liter|ltr|ml|cl|l)(?![a-z])/g)) {
+    const value = Number(m[1].replace(",", "."));
+    if (Number.isFinite(value) && value > 0) volumes.push(value * unitFactor[m[2]]);
+  }
+  if (volumes.length === 0) return true;
+  // Kleine Toleranz fuer Rundung (z.B. "0,7499" durch Umrechnung).
+  return Math.max(...volumes) >= MIN_BOTTLE_LITERS - 0.001;
+}
+
 function buildTitle(brand: string | undefined, name: string | undefined): string {
   const b = (brand ?? "").trim();
   const n = (name ?? "").trim().replace(/\s*\n\s*/g, " ");
@@ -160,7 +187,8 @@ function extractKaufdaPageOffers(html: string, sourceUrl: string): SparklingOffe
   const items = extractNextData(html)?.props?.pageProps?.pageInformation?.offers?.main?.items ?? [];
   const results: SparklingOffer[] = [];
   for (const item of items) {
-    if (!isSparkling([item.brand, item.title, item.description].filter(Boolean).join(" "))) continue;
+    const text = [item.brand, item.title, item.description].filter(Boolean).join(" ");
+    if (!isSparkling(text) || !isLargeEnough(text)) continue;
     const price = item.prices?.mainPrice;
     const title = buildTitle(item.brand, item.title);
     if (!item.id || !item.publisherName || !title || !isPlausiblePrice(price)) continue;
@@ -192,6 +220,7 @@ function extractKaufdaBrochureOffers(data: KaufdaBrochurePagesResponse): Sparkli
       if (!isSparkling([product.brandName, product.name, description, categories].filter(Boolean).join(" "))) {
         continue;
       }
+      if (!isLargeEnough([product.name, description].filter(Boolean).join(" "))) continue;
       const salesPrice = content.deals?.find((d) => d.type === "SALES_PRICE");
       const price = salesPrice?.min ?? salesPrice?.max;
       const store = content.publisher?.name;
@@ -221,7 +250,8 @@ function extractHitSparklingOffers(html: string): { offers: SparklingOffer[]; le
   const results: SparklingOffer[] = [];
   for (const leaflet of leaflets) {
     if (!leaflet.id || !leaflet.headline) continue;
-    if (!isSparkling(`${leaflet.headline} ${leaflet.text ?? ""}`)) continue;
+    const text = `${leaflet.headline} ${leaflet.text ?? ""}`;
+    if (!isSparkling(text) || !isLargeEnough(text)) continue;
     const price = Number(leaflet.price);
     if (!isPlausiblePrice(price)) continue;
     results.push({
