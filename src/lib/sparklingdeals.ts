@@ -1,3 +1,10 @@
+import {
+  extractKauflandOffers,
+  fetchKauflandLeafletLinks,
+  KAUFLAND_OFFERS_URL,
+  kauflandDay,
+  tidyKauflandBrand,
+} from "@/lib/kaufland";
 import { prisma } from "@/lib/db";
 import {
   buildOfferUrl,
@@ -160,7 +167,10 @@ function classifySparkling(rawText: string): Verdict {
   const text = normalizeText(rawText);
   const nonDrink = NON_DRINK_WORDS.find((w) => text.includes(w));
   if (nonDrink) return { ok: false, reason: `kein Getränk („${nonDrink}“)` };
-  const food = FOOD_WORDS.find((w) => text.includes(w));
+  const hasKeyword = SPARKLING_KEYWORDS.some((w) => text.includes(w));
+  // Essens-Woerter nur ohne eindeutiges Sekt-Stichwort werten: Kaufland
+  // beschreibt Getraenke gern mit "passt zu ... würzigem Käse".
+  const food = hasKeyword ? undefined : FOOD_WORDS.find((w) => text.includes(w));
   if (food) return { ok: false, reason: `Lebensmittel („${food}“)` };
   const cleaned = stripUnitPrices(text);
   const volumes = parseVolumes(cleaned);
@@ -168,7 +178,7 @@ function classifySparkling(rawText: string): Verdict {
   if (volumes.length === 0 && /\d\s*-?\s*(?:g|kg)(?![a-z])|pckg|packung/.test(cleaned)) {
     return { ok: false, reason: "Lebensmittel (Gewichtsangabe)" };
   }
-  if (SPARKLING_KEYWORDS.some((w) => text.includes(w))) return OK;
+  if (hasKeyword) return OK;
   if (PURE_SPARKLING_BRANDS.some((b) => text.includes(b))) return OK;
   if (MIXED_SPARKLING_BRANDS.some((b) => text.includes(b))) {
     // Stillwein derselben Marke (z.B. "Rotkäppchen Qualitätswein") nicht
@@ -360,6 +370,35 @@ function extractHitSparklingOffers(
   return { offers: results, leafletCount: leaflets.length };
 }
 
+function extractKauflandSparklingOffers(
+  html: string,
+  leafletLinks: Map<string, string>,
+  reject: RejectFn
+): { offers: SparklingOffer[]; total: number } {
+  const all = extractKauflandOffers(html);
+  const results: SparklingOffer[] = [];
+  for (const offer of all) {
+    const brand = tidyKauflandBrand(offer.title ?? "");
+    const title = buildTitle(brand, offer.subtitle);
+    const text = [offer.title, offer.subtitle, offer.unit, offer.detailDescription].filter(Boolean).join(" ");
+    const sizeText = [offer.subtitle, offer.unit, offer.detailDescription].filter(Boolean).join(" ");
+    if (!accept(text, sizeText, title, "Kaufland", offer.price, reject)) continue;
+    results.push({
+      id: `kaufland-${offer.offerId}`,
+      title,
+      details: cleanDetails([offer.unit, offer.detailDescription].filter(Boolean).join("\n")),
+      store: "Kaufland",
+      price: offer.price as number,
+      sourceUrl: KAUFLAND_OFFERS_URL,
+      offerUrl: (offer.klNr && leafletLinks.get(offer.klNr)) || KAUFLAND_OFFERS_URL,
+      brochureId: null,
+      validFrom: kauflandDay(offer.salesFrom ?? offer.dateFrom, "start"),
+      validUntil: kauflandDay(offer.salesTo ?? offer.dateTo, "end"),
+    });
+  }
+  return { offers: results, total: all.length };
+}
+
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -389,6 +428,10 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
   // nicht als unbehandelte Rejection endet, bevor er unten abgefragt wird.
   const hitPromise = Promise.allSettled([
     fetchText(HIT_ALL_OFFERS_URL).then((html) => extractHitSparklingOffers(html, reject)),
+  ]);
+  const kauflandPromise = Promise.allSettled([
+    fetchText(KAUFLAND_OFFERS_URL),
+    fetchKauflandLeafletLinks(),
   ]);
   const searchPromise = Promise.allSettled(KAUFDA_SEARCH_QUERIES.map((q) => searchBrochureIds(q)));
 
@@ -420,6 +463,23 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
   } else {
     hitInfo = ` HIT: ${errorText(hitResult.reason)}.`;
     errors.push(`HIT: ${errorText(hitResult.reason)}`);
+  }
+
+  // Kaufland direkt. Bei gleichem Titel/Preis wie ein kaufda-Eintrag gewinnt
+  // dieser hier (steht unten beim Entdoppeln vorne), weil er direkt auf die
+  // richtige Prospektseite verlinkt.
+  const kauflandOffers: SparklingOffer[] = [];
+  let kauflandInfo = "";
+  const [kauflandPage, kauflandLinks] = await kauflandPromise;
+  if (kauflandPage.status === "fulfilled") {
+    const links = kauflandLinks.status === "fulfilled" ? kauflandLinks.value : new Map<string, string>();
+    if (kauflandLinks.status === "rejected") errors.push(`Kaufland-Prospekt: ${errorText(kauflandLinks.reason)}`);
+    const { offers, total } = extractKauflandSparklingOffers(kauflandPage.value, links, reject);
+    kauflandOffers.push(...offers);
+    if (total === 0) kauflandInfo = " Kaufland: keine Angebote auf der Seite gefunden.";
+  } else {
+    kauflandInfo = ` Kaufland: ${errorText(kauflandPage.reason)}.`;
+    errors.push(`Kaufland: ${errorText(kauflandPage.reason)}`);
   }
 
   const brochureIds = new Set<string>();
@@ -454,7 +514,7 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
   }
 
   const seen = new Set<string>();
-  const deals = Array.from(collected.values())
+  const deals = [...kauflandOffers, ...collected.values()]
     .filter((d) => {
       const key = `${normalizeText(d.title)}|${normalizeText(d.store)}|${d.price}`;
       if (seen.has(key)) return false;
@@ -513,9 +573,10 @@ export async function syncSparklingDeals(): Promise<SparklingDealsSyncResult> {
 
   const message =
     `${deals.length} Angebot(e): ${pageHits} von kaufda-Seiten, ${brochureHits} zusätzlich aus ` +
-    `${brochureIds.size} Prospekten, ${hitCount} von HIT.` +
+    `${brochureIds.size} Prospekten, ${hitCount} von HIT, ${kauflandOffers.length} direkt von Kaufland.` +
     (errors.length ? ` (${errors.length} Quellen ohne Treffer/Fehler)` : "") +
-    hitInfo;
+    hitInfo +
+    kauflandInfo;
   await prisma.sparklingDealsConfig.upsert({
     where: { id: 1 },
     update: { lastSyncAt: now, lastSyncOk: true, lastSyncMsg: message, lastSyncDebug },
