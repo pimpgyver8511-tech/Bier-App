@@ -6,7 +6,7 @@ import { SparklingDealsTable } from "@/components/SparklingDealsTable";
 import { SparklingDealsSyncButton } from "@/components/SparklingDealsSyncButton";
 
 export const metadata: Metadata = {
-  title: "Prickelnd",
+  title: "Gingers World",
   robots: { index: false, follow: false },
 };
 
@@ -43,7 +43,7 @@ export default async function SparklingDealsPage({ params }: PageProps<"/prickel
     <section className="card overflow-hidden">
       <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-lg font-bold">🥂 Sekt &amp; Prosecco diese Woche</h1>
+          <h1 className="text-lg font-bold">🥂 Gingers World</h1>
           <p className="text-xs text-muted mt-0.5">Aktuelle Angebote in Leipzig, günstigste zuerst</p>
         </div>
         {admin && <SparklingDealsSyncButton />}
