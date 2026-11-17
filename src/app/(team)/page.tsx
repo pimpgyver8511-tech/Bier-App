@@ -69,8 +69,44 @@ export default async function HomePage() {
     cooldownRemainingDays: p.cooldownRemainingDays,
   }));
 
+  // Steht ein Event (z.B. Weihnachtsfeier) vor dem naechsten Spiel an, kommt
+  // es ganz nach oben - in der Winterpause ist das naechste Spiel erst
+  // naechstes Jahr und damit nicht das Wichtigste auf der Seite.
+  const eventFirst = !!nextTeamEvent && (!nextMatch || nextTeamEvent.date <= nextMatch.date);
+  const eventCard = nextTeamEvent ? (
+    <section className="card border-2 border-gold overflow-hidden">
+      <div className="px-5 sm:px-6 py-4 flex items-center justify-between gap-3 flex-wrap bg-[#fbeed2]/50">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gold-dark">Nächstes Event</p>
+          <h2 className="text-xl font-bold">
+            {/weihnacht/i.test(nextTeamEvent.title) ? "🎄" : "🎉"} {nextTeamEvent.title}
+          </h2>
+          <p className="text-sm text-muted mt-0.5">
+            {formatEventDate(nextTeamEvent.date)} Uhr
+            {nextTeamEvent.restaurant
+              ? ` · 🍴 ${nextTeamEvent.restaurant}`
+              : nextTeamEvent.location
+                ? ` · ${nextTeamEvent.location}`
+                : ""}
+          </p>
+          {nextTeamEvent.mealOrder && (
+            <p className="text-sm mt-1">
+              🍽️ {nextTeamEvent.participants.filter((p) => p.dish).length} von{" "}
+              {nextTeamEvent.participants.length} haben ihr Essen gewählt
+            </p>
+          )}
+        </div>
+        <Link href={`/events/${nextTeamEvent.id}`} className="btn btn-primary">
+          {nextTeamEvent.mealOrder && !nextTeamEvent.orderLocked ? "🍽️ Essen wählen →" : "Details →"}
+        </Link>
+      </div>
+    </section>
+  ) : null;
+
   return (
     <div className="space-y-8">
+      {eventFirst && eventCard}
+
       <section className="card overflow-hidden relative">
         <div className="relative aspect-[2.1/1]">
           <Image
@@ -103,39 +139,12 @@ export default async function HomePage() {
         createLabel="🏋️ Training anlegen & Kasten-Verantwortliche festlegen →"
       />
 
-      {nextTeamEvent && (
-        <section className="card">
-          <div className="px-5 sm:px-6 py-4 flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="text-lg font-bold">🎉 Nächstes Event: {nextTeamEvent.title}</h2>
-              <p className="text-sm text-muted mt-0.5">
-                {formatEventDate(nextTeamEvent.date)} Uhr
-                {nextTeamEvent.restaurant
-                  ? ` · 🍴 ${nextTeamEvent.restaurant}`
-                  : nextTeamEvent.location
-                    ? ` · ${nextTeamEvent.location}`
-                    : ""}
-              </p>
-              {nextTeamEvent.mealOrder && (
-                <p className="text-sm mt-1">
-                  🍽️ {nextTeamEvent.participants.filter((p) => p.dish).length} von{" "}
-                  {nextTeamEvent.participants.length} haben ihr Essen gewählt
-                </p>
-              )}
-            </div>
-            <Link href={`/events/${nextTeamEvent.id}`} className="btn btn-primary">
-              {nextTeamEvent.mealOrder && !nextTeamEvent.orderLocked ? "🍽️ Essen wählen →" : "Details →"}
-            </Link>
-          </div>
-        </section>
-      )}
+      {nextTeamEvent && !eventFirst && eventCard}
 
       <section className="card">
         <div className="px-5 sm:px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold">Kasten-Überblick</h2>
-          <p className="text-xs text-muted mt-0.5">
-            Aktueller Stand: wer hat gerade einen Kasten offen.
-          </p>
+          <p className="text-xs text-muted mt-0.5">Aktueller Stand: wer hat gerade einen Kasten offen.</p>
         </div>
         <PlayerQueueTable rows={queueRows} admin={admin} />
       </section>
