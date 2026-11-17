@@ -25,7 +25,8 @@ export default async function OrderPage({ params }: PageProps<"/events/[id]/best
       <div>
         <h1 className="text-2xl font-bold">Essensbestellung {event.title}</h1>
         <p className="text-muted text-sm mt-1">
-          {formatEventDate(event.date)} Uhr{event.location ? ` · ${event.location}` : ""} · {event.participants.length}{" "}
+          {formatEventDate(event.date)} Uhr{event.restaurant ? ` · ${event.restaurant}` : ""}
+          {event.location ? ` · ${event.location}` : ""} · {event.participants.length}{" "}
           Personen
         </p>
       </div>

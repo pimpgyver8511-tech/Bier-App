@@ -110,7 +110,11 @@ export default async function HomePage() {
               <h2 className="text-lg font-bold">🎉 Nächstes Event: {nextTeamEvent.title}</h2>
               <p className="text-sm text-muted mt-0.5">
                 {formatEventDate(nextTeamEvent.date)} Uhr
-                {nextTeamEvent.location ? ` · ${nextTeamEvent.location}` : ""}
+                {nextTeamEvent.restaurant
+                  ? ` · 🍴 ${nextTeamEvent.restaurant}`
+                  : nextTeamEvent.location
+                    ? ` · ${nextTeamEvent.location}`
+                    : ""}
               </p>
               {nextTeamEvent.mealOrder && (
                 <p className="text-sm mt-1">

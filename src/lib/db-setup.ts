@@ -219,6 +219,13 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
       `ALTER TABLE "EventParticipant" ADD CONSTRAINT "EventParticipant_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
     ],
   },
+  {
+    name: "20261117160000_team_event_invitation",
+    statements: [
+      `ALTER TABLE "TeamEvent" ADD COLUMN "restaurant" TEXT`,
+      `ALTER TABLE "TeamEvent" ADD COLUMN "invitation" TEXT`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

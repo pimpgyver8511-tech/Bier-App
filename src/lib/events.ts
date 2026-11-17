@@ -115,12 +115,13 @@ export function summarizeOrder(participants: OrderParticipant[]) {
 
 /** Bestellung als Text zum Kopieren in E-Mail/WhatsApp an das Restaurant. */
 export function buildOrderText(
-  event: { title: string; date: Date },
+  event: { title: string; date: Date; restaurant?: string | null },
   participants: OrderParticipant[]
 ): string {
   const { totals, missing } = summarizeOrder(participants);
   const lines = [
     `Essensbestellung ${event.title} – ${formatEventDate(event.date)} Uhr`,
+    ...(event.restaurant ? [`Restaurant: ${event.restaurant}`] : []),
     `${participants.length} Personen`,
     "",
     "Zusammenfassung:",

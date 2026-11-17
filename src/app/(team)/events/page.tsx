@@ -43,7 +43,7 @@ export default async function EventsPage() {
           <div className="min-w-0">
             <p className="font-semibold">{e.title}</p>
             <p className="text-sm text-muted">
-              {formatEventDate(e.date)} Uhr{e.location ? ` · ${e.location}` : ""}
+              {formatEventDate(e.date)} Uhr{e.restaurant ? ` · 🍴 ${e.restaurant}` : e.location ? ` · ${e.location}` : ""}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">

@@ -37,6 +37,20 @@ export async function deleteEventAction(eventId: string) {
   redirect("/events");
 }
 
+export async function updateEventInfoAction(eventId: string, formData: FormData) {
+  await requireAdmin();
+  const restaurant = String(formData.get("restaurant") ?? "").trim().slice(0, 120);
+  const invitation = String(formData.get("invitation") ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .slice(0, 2000);
+  await prisma.teamEvent.update({
+    where: { id: eventId },
+    data: { restaurant: restaurant || null, invitation: invitation || null },
+  });
+  refresh(eventId);
+}
+
 export async function updateEventMealSettingsAction(eventId: string, formData: FormData) {
   await requireAdmin();
   const menuUrl = String(formData.get("menuUrl") ?? "").trim();

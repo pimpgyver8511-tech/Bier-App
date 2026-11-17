@@ -86,6 +86,9 @@ model TeamEvent {
   title       String
   date        DateTime
   location    String?
+  // Vom Admin gepflegt: Restaurant/Lokal und ein kurzer Einladungstext
+  restaurant  String?
+  invitation  String?
   // Essensbestellung (z.B. Weihnachtsfeier im Restaurant)
   mealOrder   Boolean  @default(false)
   menuUrl     String?

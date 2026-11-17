@@ -9,8 +9,10 @@ import {
   addEventParticipantAction,
   deleteEventAction,
   removeEventParticipantAction,
+  updateEventInfoAction,
   updateEventMealSettingsAction,
 } from "@/lib/event-actions";
+import { CopyInvitationButton } from "./CopyInvitationButton";
 import { MealChoiceRow } from "./MealChoiceRow";
 import { EventCsvImport } from "./EventCsvImport";
 
@@ -37,6 +39,21 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
   const participantPlayerIds = new Set(event.participants.map((p) => p.playerId));
   const addablePlayers = players.filter((p) => !participantPlayerIds.has(p.id));
 
+  const mapsUrl = event.restaurant
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        `${event.restaurant} ${event.location?.includes("Leipzig") ? "" : "Leipzig"}`.trim()
+      )}`
+    : null;
+  const invitationText = [
+    `🎉 ${event.title}`,
+    `🗓️ ${formatEventDate(event.date)} Uhr`,
+    event.restaurant ? `🍴 ${event.restaurant}` : event.location ? `📍 ${event.location}` : null,
+    event.invitation ? `\n${event.invitation}` : null,
+    event.mealOrder && !event.orderLocked ? "\n🍽️ Essen auswählen:" : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   return (
     <div className="space-y-6">
       <div>
@@ -47,7 +64,29 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
         <p className="text-muted text-sm mt-1">
           {formatEventDate(event.date)} Uhr{event.location ? ` · ${event.location}` : ""}
         </p>
+        {event.restaurant && (
+          <p className="text-sm mt-1.5">
+            🍴 Restaurant:{" "}
+            <a
+              href={mapsUrl ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold underline decoration-dotted underline-offset-2"
+            >
+              {event.restaurant}
+            </a>
+          </p>
+        )}
       </div>
+
+      {event.invitation && (
+        <section className="card border-2 border-gold overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 bg-[#fbeed2]/60">
+            <h2 className="text-lg font-bold">💌 Einladung</h2>
+            <p className="mt-2 whitespace-pre-line leading-relaxed">{event.invitation}</p>
+          </div>
+        </section>
+      )}
 
       <section className="card overflow-hidden">
         <div className="px-4 sm:px-6 py-4 border-b border-border">
@@ -143,6 +182,37 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
                 )}
               </div>
             )}
+
+            <form action={updateEventInfoAction.bind(null, event.id)} className="space-y-3">
+              <p className="text-sm font-semibold">Einladung &amp; Restaurant</p>
+              <label className="block">
+                <span className="text-xs font-medium text-muted block mb-1">Name des Restaurants</span>
+                <input
+                  name="restaurant"
+                  className="input"
+                  defaultValue={event.restaurant ?? ""}
+                  placeholder="z. B. BiBaBo"
+                  maxLength={120}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-muted block mb-1">Einladungstext</span>
+                <textarea
+                  name="invitation"
+                  className="input min-h-[7rem] resize-y"
+                  rows={5}
+                  defaultValue={event.invitation ?? ""}
+                  placeholder={"z. B. Liebe Mannschaft, zum Jahresabschluss lassen wir es uns gemeinsam gut gehen! Wir treffen uns um 19 Uhr …"}
+                  maxLength={2000}
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" className="btn btn-gold">
+                  Speichern
+                </button>
+                <CopyInvitationButton text={invitationText} />
+              </div>
+            </form>
 
             <form action={updateEventMealSettingsAction.bind(null, event.id)} className="space-y-3">
               <p className="text-sm font-semibold">Essensbestellung</p>
