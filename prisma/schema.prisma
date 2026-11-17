@@ -19,6 +19,7 @@ model Player {
   attendances Attendance[]
   assignments KastenAssignment[]
   importRows  KastenImportRow[]
+  eventParticipations EventParticipant[]
 }
 
 model Match {
@@ -74,6 +75,45 @@ model Attendance {
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, playerId])
+}
+
+// Sonstige Mannschafts-Termine aus Spielerplus (UID-Praefix "event.", z.B.
+// "Weihnachtsfeier") - bewusst getrennt von Match, damit sie weder in der
+// Kasten-Zuteilung noch in Spiel-/Trainingsuebersichten auftauchen.
+model TeamEvent {
+  id          String   @id @default(cuid())
+  externalId  String?  @unique
+  title       String
+  date        DateTime
+  location    String?
+  // Essensbestellung (z.B. Weihnachtsfeier im Restaurant)
+  mealOrder   Boolean  @default(false)
+  menuUrl     String?
+  // Bestellung abgeschlossen: Spieler koennen ihre Wahl nicht mehr aendern
+  orderLocked Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  participants EventParticipant[]
+}
+
+// Teilnehmer eines TeamEvent. playerId fehlt bei Namen aus dem Spielerplus-
+// Export, die keinem Spieler zugeordnet werden konnten, und bei Gaesten.
+model EventParticipant {
+  id        String           @id @default(cuid())
+  eventId   String
+  playerId  String?
+  name      String
+  source    AttendanceSource @default(MANUAL)
+  dish      String?
+  dishPrice Float?
+  note      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  event  TeamEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player Player?   @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, name])
 }
 
 model KastenAssignment {

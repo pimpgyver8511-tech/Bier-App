@@ -185,6 +185,40 @@ const MIGRATIONS: { name: string; statements: string[] }[] = [
     name: "20261112200000_sparkling_only_at",
     statements: [`ALTER TABLE "SparklingDeal" ADD COLUMN "onlyAt" TEXT`],
   },
+  {
+    name: "20261117120000_team_events",
+    statements: [
+      `CREATE TABLE "TeamEvent" (
+        "id" TEXT NOT NULL,
+        "externalId" TEXT,
+        "title" TEXT NOT NULL,
+        "date" TIMESTAMP(3) NOT NULL,
+        "location" TEXT,
+        "mealOrder" BOOLEAN NOT NULL DEFAULT false,
+        "menuUrl" TEXT,
+        "orderLocked" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "TeamEvent_pkey" PRIMARY KEY ("id")
+      )`,
+      `CREATE UNIQUE INDEX "TeamEvent_externalId_key" ON "TeamEvent"("externalId")`,
+      `CREATE TABLE "EventParticipant" (
+        "id" TEXT NOT NULL,
+        "eventId" TEXT NOT NULL,
+        "playerId" TEXT,
+        "name" TEXT NOT NULL,
+        "source" "AttendanceSource" NOT NULL DEFAULT 'MANUAL',
+        "dish" TEXT,
+        "dishPrice" DOUBLE PRECISION,
+        "note" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+        CONSTRAINT "EventParticipant_pkey" PRIMARY KEY ("id")
+      )`,
+      `CREATE UNIQUE INDEX "EventParticipant_eventId_name_key" ON "EventParticipant"("eventId", "name")`,
+      `ALTER TABLE "EventParticipant" ADD CONSTRAINT "EventParticipant_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "TeamEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "EventParticipant" ADD CONSTRAINT "EventParticipant_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
+    ],
+  },
 ];
 
 export type DbSetupResult = {

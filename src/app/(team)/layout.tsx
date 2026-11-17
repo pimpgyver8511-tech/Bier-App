@@ -9,9 +9,11 @@ import { NavBar } from "@/components/NavBar";
 export default function TeamLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <NavBar />
+      <div className="print:hidden">
+        <NavBar />
+      </div>
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-6 sm:py-8">{children}</main>
-      <footer className="text-center text-xs text-muted py-6">🍺 Bier App</footer>
+      <footer className="text-center text-xs text-muted py-6 print:hidden">🍺 Bier App</footer>
     </>
   );
 }

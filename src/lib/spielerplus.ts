@@ -74,6 +74,7 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
 
   let created = 0;
   let updated = 0;
+  let eventsSynced = 0;
 
   for (const raw of Object.values(events)) {
     if (!raw || raw.type !== "VEVENT") continue;
@@ -100,9 +101,14 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
       // UID-Praefix und schlichtem SUMMARY "Training", ohne Gegner - per
       // echtem Nutzer-Kalenderexport bestaetigt.
       type = "TRAINING";
+    } else if (uid.startsWith("event.")) {
+      // Sonstige Mannschafts-Termine (z.B. "Weihnachtsfeier") landen in
+      // einer eigenen Tabelle (TeamEvent), getrennt von Spielen/Trainings -
+      // siehe syncTeamEventFromIcs.
+      if (await syncTeamEventFromIcs(uid, event)) eventsSynced++;
+      continue;
     } else {
-      // Andere Termin-Arten (event./tournament./absence., z.B.
-      // "Weihnachtsfeier", "Hallenstadtmeisterschaft", persoenlicher
+      // tournament./absence. (z.B. "Hallenstadtmeisterschaft", persoenlicher
       // "Urlaub") sind kein Spiel/Training und werden nicht uebernommen.
       continue;
     }
@@ -157,7 +163,9 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
     }
   }
 
-  const message = `${created} neue(s), ${updated} aktualisierte(s) Spiel(e)/Training(s) übernommen.`;
+  const message =
+    `${created} neue(s), ${updated} aktualisierte(s) Spiel(e)/Training(s) übernommen.` +
+    (eventsSynced ? ` ${eventsSynced} Event(s) neu/aktualisiert.` : "");
   await prisma.spielerplusConfig.update({
     where: { id: 1 },
     data: { lastSyncAt: new Date(), lastSyncOk: true, lastSyncMsg: message },
@@ -172,7 +180,33 @@ export type CsvAttendanceImportResult = {
   unmatchedNames: string[];
 };
 
-function parseCsvLine(line: string, delimiter = ";"): string[] {
+/**
+ * Legt einen Spielerplus-Termin mit UID-Praefix "event." als TeamEvent an
+ * bzw. aktualisiert Titel/Zeit/Ort. Die Essensbestellungs-Einstellungen
+ * (mealOrder, menuUrl, orderLocked) setzt nur der Admin und bleiben unberuehrt.
+ * Gibt true zurueck, wenn etwas neu angelegt oder geaendert wurde.
+ */
+async function syncTeamEventFromIcs(uid: string, event: VEvent): Promise<boolean> {
+  const title =
+    (textValue(event.summary) ?? "")
+      .replace(/^(?:event|veranstaltung|termin)\s*:\s*/i, "")
+      .trim() || "Event";
+  const date = event.start as Date;
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+  const location = textValue(event.location);
+  const existing = await prisma.teamEvent.findUnique({ where: { externalId: uid } });
+  if (!existing) {
+    await prisma.teamEvent.create({ data: { externalId: uid, title, date, location } });
+    return true;
+  }
+  if (existing.title === title && existing.date.getTime() === date.getTime() && existing.location === location) {
+    return false;
+  }
+  await prisma.teamEvent.update({ where: { id: existing.id }, data: { title, date, location } });
+  return true;
+}
+
+export function parseCsvLine(line: string, delimiter = ";"): string[] {
   const fields: string[] = [];
   let cur = "";
   let inQuotes = false;
@@ -202,11 +236,11 @@ function parseCsvLine(line: string, delimiter = ";"): string[] {
   return fields;
 }
 
-const STATUS_COLUMNS = ["status", "participation_status", "response", "teilnahme", "teilnahmestatus"];
+export const STATUS_COLUMNS = ["status", "participation_status", "response", "teilnahme", "teilnahmestatus"];
 
 type AttendanceStatusValue = "ZUSAGE" | "ABSAGE" | "UNSICHER" | "UNKNOWN";
 
-function mapStatusValue(raw: string): AttendanceStatusValue {
+export function mapStatusValue(raw: string): AttendanceStatusValue {
   const v = raw.trim().toLowerCase();
   if (["zugesagt", "zusage", "yes", "confirmed", "attending", "ja"].includes(v)) return "ZUSAGE";
   if (["abgesagt", "absage", "no", "declined", "nein"].includes(v)) return "ABSAGE";
