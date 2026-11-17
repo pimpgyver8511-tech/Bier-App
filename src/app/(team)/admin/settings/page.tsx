@@ -1,6 +1,6 @@
 import { isAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
+import { isConnectionLimitError, prisma } from "@/lib/db";
 import { updateSettingsAction, updateIcsUrlAction } from "@/lib/actions";
 import { DbSetupButton } from "@/components/DbSetupButton";
 import { IcsSyncButton } from "@/components/IcsSyncButton";
@@ -15,13 +15,16 @@ export default async function SettingsPage() {
   let settings: Awaited<ReturnType<typeof prisma.settings.findUnique>> = null;
   let spielerplus: Awaited<ReturnType<typeof prisma.spielerplusConfig.findUnique>> = null;
   let dbReady = true;
+  let dbBusy = false;
   try {
     [settings, spielerplus] = await Promise.all([
       prisma.settings.findUnique({ where: { id: 1 } }),
       prisma.spielerplusConfig.findUnique({ where: { id: 1 } }),
     ]);
-  } catch {
-    dbReady = false;
+  } catch (err) {
+    // Verbindungslimit erreicht heisst nicht "Tabellen fehlen" - eigener Hinweis
+    if (isConnectionLimitError(err)) dbBusy = true;
+    else dbReady = false;
   }
 
   return (
@@ -29,6 +32,16 @@ export default async function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">Einstellungen</h1>
       </div>
+
+      {dbBusy && (
+        <section className="card p-5 sm:p-6 space-y-2 border-gold">
+          <h2 className="text-lg font-bold">⏳ Datenbank gerade ausgelastet</h2>
+          <p className="text-sm text-muted">
+            Die Datenbank nimmt im Moment keine weiteren Verbindungen an („too many connections“). Das
+            löst sich von selbst – bitte in 1–2 Minuten die Seite neu laden.
+          </p>
+        </section>
+      )}
 
       {!dbReady && (
         <section className="card p-5 sm:p-6 space-y-3 border-gold">

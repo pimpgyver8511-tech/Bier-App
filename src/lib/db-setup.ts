@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { isConnectionLimitError, prisma } from "@/lib/db";
 
 // Einrichtung/Aktualisierung des Datenbankschemas zur Laufzeit (statt beim
 // Vercel-Build), weil "prisma migrate deploy" waehrend des Builds die
@@ -290,6 +290,13 @@ export async function applyPendingMigrations(): Promise<DbSetupResult> {
     }
     return { ok: true, message: `${appliedCount} Migration(en) erfolgreich angewendet.` };
   } catch (err) {
+    if (isConnectionLimitError(err)) {
+      return {
+        ok: false,
+        message:
+          "Die Datenbank ist gerade ausgelastet (zu viele Verbindungen). Bitte in 1–2 Minuten nochmal klicken.",
+      };
+    }
     return {
       ok: false,
       message: "Fehler beim Einrichten: " + (err instanceof Error ? err.message : String(err)),
