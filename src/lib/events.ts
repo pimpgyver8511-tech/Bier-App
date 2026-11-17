@@ -133,7 +133,7 @@ export function buildOrderText(
     ...participants.map(
       (p, i) =>
         `${i + 1}. ${p.name}: ${p.dish ?? "– noch offen –"}` +
-        (p.note ? ` (${p.note})` : "") +
+        (p.note ? ` – Sonderwunsch: ${p.note}` : "") +
         (p.dishPrice ? ` – ${formatEuro(p.dishPrice)}` : "")
     ),
   ];
@@ -148,7 +148,7 @@ function csvField(value: string): string {
 export function buildOrderCsv(participants: OrderParticipant[]): string {
   const { totals } = summarizeOrder(participants);
   const rows = [
-    ["Nr.", "Name", "Gericht", "Anmerkung", "Preis"],
+    ["Nr.", "Name", "Gericht", "Änderungen / Sonderwünsche", "Preis"],
     ...participants.map((p, i) => [
       String(i + 1),
       p.name,

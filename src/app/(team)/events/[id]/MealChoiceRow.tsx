@@ -101,7 +101,11 @@ export function MealChoiceRow({
           ) : (
             <span className="badge badge-gold mt-1">noch nichts gewählt</span>
           )}
-          {participant.note && <p className="text-xs text-muted mt-0.5">📝 {participant.note}</p>}
+          {participant.note && (
+            <p className="text-xs mt-1 rounded-md bg-[#fbeed2] text-gold-dark px-2 py-1 inline-block">
+              ✏️ {participant.note}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {editable && !open && (
@@ -157,14 +161,19 @@ export function MealChoiceRow({
             </label>
           )}
           <label className="block">
-            <span className="text-xs font-medium text-muted block mb-1">Anmerkung (optional)</span>
-            <input
+            <span className="text-sm font-semibold block mb-0.5">✏️ Änderungen &amp; Sonderwünsche (optional)</span>
+            <span className="text-xs text-muted block mb-1">
+              Freitext fürs Restaurant, z. B. andere Beilage, ohne Zutat, Soße extra, Allergie
+            </span>
+            <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="input"
-              placeholder="z. B. ohne Zwiebeln, vegetarisch, Allergie …"
-              maxLength={200}
+              className="input min-h-[4.5rem] resize-y"
+              rows={3}
+              placeholder="z. B. Bratkartoffeln statt Pommes, ohne Zwiebeln, Soße extra …"
+              maxLength={300}
             />
+            <span className="text-[11px] text-muted block mt-0.5 text-right">{note.length}/300</span>
           </label>
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex gap-2">

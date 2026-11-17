@@ -124,7 +124,7 @@ export async function saveMealChoiceAction(
     data: {
       dish: cleaned.length ? cleaned.join(" + ") : null,
       dishPrice: priceKnown ? Math.round(price * 100) / 100 : null,
-      note: note.trim().slice(0, 200) || null,
+      note: note.trim().slice(0, 300) || null,
     },
   });
   refresh(participant.eventId);

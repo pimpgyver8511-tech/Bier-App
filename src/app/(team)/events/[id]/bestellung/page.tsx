@@ -76,7 +76,7 @@ export default async function OrderPage({ params }: PageProps<"/events/[id]/best
                 <td className="px-2 py-2 font-medium">{p.name}</td>
                 <td className="px-2 py-2">
                   {p.dish ?? <span className="text-danger">noch offen</span>}
-                  {p.note && <span className="block text-xs text-muted">{p.note}</span>}
+                  {p.note && <span className="block text-xs font-medium text-gold-dark">✏️ {p.note}</span>}
                 </td>
                 <td className="px-2 sm:px-6 py-2 text-right whitespace-nowrap">
                   {p.dishPrice ? formatEuro(p.dishPrice) : ""}
