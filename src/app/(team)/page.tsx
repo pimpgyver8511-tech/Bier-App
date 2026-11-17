@@ -7,6 +7,8 @@ import { PlayerQueueTable, type QueueRow } from "@/components/PlayerQueueTable";
 import { NextEventCard } from "@/components/NextEventCard";
 import Link from "next/link";
 import { formatEventDate } from "@/lib/events";
+import { getSparklingShareToken } from "@/lib/auth";
+import { getAllSparklingDeals } from "@/lib/sparklingdeals";
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("de-DE", {
@@ -51,6 +53,11 @@ export default async function HomePage() {
       })
       .catch(() => null),
   ]);
+
+  // Sekt-Angebote nur fuer den Admin auf der Uebersicht (fuer alle anderen
+  // bleibt die Seite unsichtbar und nur per direktem Link erreichbar).
+  const sparklingDeals = admin ? await getAllSparklingDeals().catch(() => []) : [];
+  const sparklingHref = admin ? `/prickelnd/${getSparklingShareToken()}` : null;
 
   const queueRows: QueueRow[] = overview.map((p) => ({
     playerId: p.playerId,
@@ -140,6 +147,46 @@ export default async function HomePage() {
       />
 
       {nextTeamEvent && !eventFirst && eventCard}
+
+      {sparklingHref && (
+        <section className="card overflow-hidden">
+          <div className="px-5 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-lg font-bold">🥂 Gingers World</h2>
+              <p className="text-xs text-muted mt-0.5">
+                Sekt &amp; Prosecco im Angebot – nur für dich als Admin sichtbar
+              </p>
+            </div>
+            <Link href={sparklingHref} className="btn btn-outline text-sm">
+              Alle {sparklingDeals.length} Angebote →
+            </Link>
+          </div>
+          {sparklingDeals.length ? (
+            <ul className="divide-y divide-border">
+              {sparklingDeals.slice(0, 3).map((d, i) => (
+                <li key={d.id} className="px-5 sm:px-6 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium leading-snug">
+                      {d.title}
+                      {i === 0 && " 🏆"}
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">
+                      {d.store}
+                      {d.onlyAt.length > 0 &&
+                        ` · nur ${d.onlyAt.map((s) => s.replace(/^Kaufland\s+(Leipzig-)?/, "")).join(", ")}`}
+                    </p>
+                  </div>
+                  <span className="font-bold text-brand-dark whitespace-nowrap">
+                    {d.price.toFixed(2).replace(".", ",")} €
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 sm:px-6 py-4 text-sm text-muted">Aktuell keine Angebote geladen.</p>
+          )}
+        </section>
+      )}
 
       <section className="card">
         <div className="px-5 sm:px-6 py-4 border-b border-border">

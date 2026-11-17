@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isAdmin, isValidSparklingShareToken } from "@/lib/auth";
 import {
@@ -34,24 +35,20 @@ function SyncDiagnostics({ debug }: { debug: SparklingSyncDebug }) {
   return (
     <details className="border-t border-border text-xs">
       <summary className="px-4 sm:px-6 py-2.5 cursor-pointer text-muted select-none">
-        🔍 Diagnose (nur für dich sichtbar) – {debug.rejected.length} aussortiert,{" "}
-        {debug.notYetValid.length} noch nicht gültig
+        🔍 Diagnose (nur für dich sichtbar) – {debug.rejected.length} aussortiert, {debug.notYetValid.length}{" "}
+        noch nicht gültig
       </summary>
       <div className="px-4 sm:px-6 pb-4 space-y-3">
         <div>
           <p className="font-semibold mb-1">Treffer je Händler</p>
           <p className="text-muted">
-            {debug.stores.length
-              ? debug.stores.map((s) => `${s.store} (${s.count})`).join(" · ")
-              : "keine"}
+            {debug.stores.length ? debug.stores.map((s) => `${s.store} (${s.count})`).join(" · ") : "keine"}
           </p>
         </div>
         <div>
           <p className="font-semibold mb-1">kaufda-Suche (gefundene Prospekte)</p>
           <p className="text-muted">
-            {debug.queries
-              .map((q) => `${q.query}: ${q.brochures < 0 ? "Fehler" : q.brochures}`)
-              .join(" · ")}
+            {debug.queries.map((q) => `${q.query}: ${q.brochures < 0 ? "Fehler" : q.brochures}`).join(" · ")}
           </p>
         </div>
         {debug.notYetValid.length > 0 && (
@@ -121,38 +118,45 @@ export default async function SparklingDealsPage({ params }: PageProps<"/prickel
   const debug = admin ? parseSparklingSyncDebug(config?.lastSyncDebug) : null;
 
   return (
-    <section className="card overflow-hidden">
-      <div className="px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-lg font-bold">🥂 Gingers World</h1>
-          <p className="text-xs text-muted mt-0.5">Aktuelle Angebote in Leipzig, günstigste zuerst</p>
+    <>
+      {admin && (
+        <Link href="/" className="inline-block text-sm text-muted hover:text-foreground mb-3">
+          ← Zur Bier App
+        </Link>
+      )}
+      <section className="card overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-lg font-bold">🥂 Gingers World</h1>
+            <p className="text-xs text-muted mt-0.5">Aktuelle Angebote in Leipzig, günstigste zuerst</p>
+          </div>
+          {admin && <SparklingDealsSyncButton />}
         </div>
-        {admin && <SparklingDealsSyncButton />}
-      </div>
 
-      <SparklingDealsTable deals={deals} />
+        <SparklingDealsTable deals={deals} />
 
-      <div className="px-4 sm:px-6 py-2.5 text-xs text-muted bg-surface border-t border-border">
-        {config?.lastSyncAt ? (
-          <>
-            Stand: {formatDateTime(config.lastSyncAt)}
-            {admin && (
-              <>
-                {" — "}
-                <span className={config.lastSyncOk ? "text-brand-dark" : "text-danger"}>
-                  {config.lastSyncOk ? "✅ erfolgreich" : "⚠️ fehlgeschlagen"}
-                </span>
-                {config.lastSyncMsg ? ` (${config.lastSyncMsg})` : ""}
-              </>
-            )}
-          </>
-        ) : (
-          "Noch nicht aktualisiert."
-        )}{" "}
-        · Route führt zur nächstgelegenen Filiale ab deinem Standort
-      </div>
+        <div className="px-4 sm:px-6 py-2.5 text-xs text-muted bg-surface border-t border-border">
+          {config?.lastSyncAt ? (
+            <>
+              Stand: {formatDateTime(config.lastSyncAt)}
+              {admin && (
+                <>
+                  {" — "}
+                  <span className={config.lastSyncOk ? "text-brand-dark" : "text-danger"}>
+                    {config.lastSyncOk ? "✅ erfolgreich" : "⚠️ fehlgeschlagen"}
+                  </span>
+                  {config.lastSyncMsg ? ` (${config.lastSyncMsg})` : ""}
+                </>
+              )}
+            </>
+          ) : (
+            "Noch nicht aktualisiert."
+          )}{" "}
+          · Route führt zur nächstgelegenen Filiale ab deinem Standort
+        </div>
 
-      {debug && <SyncDiagnostics debug={debug} />}
-    </section>
+        {debug && <SyncDiagnostics debug={debug} />}
+      </section>
+    </>
   );
 }

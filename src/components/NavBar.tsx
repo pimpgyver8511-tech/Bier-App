@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Outfit } from "next/font/google";
-import { isAdmin } from "@/lib/auth";
+import { getSparklingShareToken, isAdmin } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions";
 
 const outfit = Outfit({ subsets: ["latin"], weight: ["600", "700"] });
@@ -37,6 +37,14 @@ export async function NavBar() {
           </Link>
           {admin ? (
             <>
+              {/* Sekt-Seite nur fuer den Admin in der Navigation - alle anderen
+                  erreichen sie ausschliesslich ueber den direkten Link. */}
+              <Link
+                href={`/prickelnd/${getSparklingShareToken()}`}
+                className="px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition"
+              >
+                🥂 Gingers World
+              </Link>
               <Link
                 href="/admin"
                 className="px-2.5 py-1.5 rounded-lg bg-gold text-[#3a2404] font-semibold hover:brightness-105 transition"
