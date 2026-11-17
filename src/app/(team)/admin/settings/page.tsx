@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { updateSettingsAction, updateIcsUrlAction } from "@/lib/actions";
 import { DbSetupButton } from "@/components/DbSetupButton";
 import { IcsSyncButton } from "@/components/IcsSyncButton";
+import { IcsFileUpload } from "@/components/IcsFileUpload";
 
 export default async function SettingsPage() {
   if (!(await isAdmin())) redirect("/admin");
@@ -100,8 +101,8 @@ export default async function SettingsPage() {
         <p className="text-sm text-muted">
           Spielerplus bietet unter „Kalender abonnieren&rdquo; einen persönlichen .ics-Link an
           (Team-Kalender → Kalender-Symbol → „Kalender abonnieren&rdquo;). Der wird hier
-          eingetragen und beim Synchronisieren einfach per HTTP abgerufen – kein Login, kein
-          Browser nötig.
+          eingetragen und beim Synchronisieren per HTTP abgerufen. Blockt Spielerplus den
+          automatischen Abruf (HTTP 403), die Datei im Browser herunterladen und unten hochladen.
           Übernommen werden Datum/Uhrzeit, Ort, Heim/Auswärts und Gegner neuer bzw. verschobener
           Spiele sowie Datum/Uhrzeit und Ort neuer Trainingstermine. Die Zusagen/Absagen der
           einzelnen Spieler stehen nicht im Kalender-Export und bleiben weiterhin manuell auf der
@@ -123,6 +124,8 @@ export default async function SettingsPage() {
         </form>
 
         <IcsSyncButton />
+
+        <IcsFileUpload icsUrl={spielerplus?.icsUrl ?? null} />
 
         {spielerplus?.lastSyncAt && (
           <p className="text-sm text-muted">

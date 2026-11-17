@@ -445,6 +445,23 @@ export async function syncMatchScheduleAction() {
   return result;
 }
 
+export async function importIcsFileAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "Keine Datei ausgewählt.", created: 0, updated: 0 };
+  }
+  if (file.size > 5_000_000) {
+    return { ok: false, message: "Datei ist zu groß.", created: 0, updated: 0 };
+  }
+  const result = await syncMatchScheduleFromIcs(await file.text());
+  revalidatePath("/admin/matches");
+  revalidatePath("/admin/settings");
+  revalidatePath("/events");
+  revalidatePath("/");
+  return result;
+}
+
 export async function syncBeerDealsAction() {
   await requireAdmin();
   const result = await syncBeerDeals();

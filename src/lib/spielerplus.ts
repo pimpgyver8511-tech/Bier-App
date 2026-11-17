@@ -24,10 +24,17 @@ function textValue(v: string | { val: string } | undefined): string | null {
  * und stehen nicht im Kalender-Export) - Anwesenheit bleibt daher weiterhin
  * manuell zu pflegen.
  */
-export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
+/**
+ * @param uploadedIcs Inhalt einer vom Admin hochgeladenen .ics-Datei. Seit
+ *   Spielerplus automatische Abrufe von Server-Adressen (Vercel) per
+ *   Cloudflare mit HTTP 403 blockt, ist das der zuverlaessige Weg: Datei im
+ *   eigenen Browser herunterladen und hochladen. Ohne Datei wird wie bisher
+ *   die hinterlegte URL abgerufen.
+ */
+export async function syncMatchScheduleFromIcs(uploadedIcs?: string): Promise<IcsSyncResult> {
   const config = await prisma.spielerplusConfig.findUnique({ where: { id: 1 } });
-  const icsUrl = config?.icsUrl;
-  if (!icsUrl) {
+  const icsUrl = config?.icsUrl ?? null;
+  if (!icsUrl && uploadedIcs === undefined) {
     return { ok: false, message: "Keine Kalender-URL hinterlegt.", created: 0, updated: 0 };
   }
 
@@ -41,15 +48,27 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
   };
 
   let rawText: string;
-  try {
-    const res = await fetch(icsUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    rawText = await res.text();
-  } catch (err) {
-    return fail(
-      "Kalender konnte nicht geladen werden: " +
-        (err instanceof Error ? err.message : String(err))
-    );
+  if (uploadedIcs !== undefined) {
+    rawText = uploadedIcs;
+  } else {
+    try {
+      const res = await fetch(icsUrl as string);
+      if (res.status === 403) {
+        throw new Error(
+          "HTTP 403 – Spielerplus blockt den automatischen Abruf. Bitte die Kalender-Datei im Browser herunterladen und unten hochladen."
+        );
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      rawText = await res.text();
+    } catch (err) {
+      return fail(
+        "Kalender konnte nicht geladen werden: " +
+          (err instanceof Error ? err.message : String(err))
+      );
+    }
+  }
+  if (!rawText.includes("BEGIN:VCALENDAR")) {
+    return fail("Das ist keine Kalender-Datei (.ics) von Spielerplus.");
   }
 
   const teamNameMatch = rawText.match(/X-WR-CALDESC:Spielplan für (.+)/);
@@ -166,9 +185,10 @@ export async function syncMatchScheduleFromIcs(): Promise<IcsSyncResult> {
   const message =
     `${created} neue(s), ${updated} aktualisierte(s) Spiel(e)/Training(s) übernommen.` +
     (eventsSynced ? ` ${eventsSynced} Event(s) neu/aktualisiert.` : "");
-  await prisma.spielerplusConfig.update({
+  await prisma.spielerplusConfig.upsert({
     where: { id: 1 },
-    data: { lastSyncAt: new Date(), lastSyncOk: true, lastSyncMsg: message },
+    update: { lastSyncAt: new Date(), lastSyncOk: true, lastSyncMsg: message },
+    create: { id: 1, lastSyncAt: new Date(), lastSyncOk: true, lastSyncMsg: message },
   });
   return { ok: true, message, created, updated };
 }
