@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isAdmin } from "@/lib/auth";
 import { formatEventDate, getEventWithParticipants, summarizeOrder } from "@/lib/events";
-import { fetchMenu, formatEuro, menuChoices } from "@/lib/menu";
+import { fetchMenu, menuChoices } from "@/lib/menu";
 import {
   addEventParticipantAction,
   deleteEventAction,
@@ -27,7 +27,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
 
   const menu = event.mealOrder && event.menuUrl ? await fetchMenu(event.menuUrl) : null;
   const choices = menu ? menuChoices(menu) : [];
-  const { totals, missing, sum } = summarizeOrder(event.participants);
+  const { totals, missing } = summarizeOrder(event.participants);
   const chosen = event.participants.length - missing.length;
   const canEdit = event.mealOrder && (!event.orderLocked || admin);
 
@@ -116,7 +116,6 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
             <p className="font-semibold mb-1">Bisher bestellt</p>
             <p className="text-muted">
               {totals.map((t) => `${t.count}× ${t.dish}`).join(" · ")}
-              {sum > 0 && ` — zusammen ca. ${formatEuro(sum)} (ohne Getränke)`}
             </p>
           </div>
         )}

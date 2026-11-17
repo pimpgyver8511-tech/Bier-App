@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth";
 import { buildOrderText, formatEventDate, getEventWithParticipants, summarizeOrder } from "@/lib/events";
-import { formatEuro } from "@/lib/menu";
 import { OrderActions } from "./OrderActions";
 
 export const metadata: Metadata = { title: "Bestellliste" };
@@ -14,7 +13,7 @@ export default async function OrderPage({ params }: PageProps<"/events/[id]/best
   const { id } = await params;
   const event = await getEventWithParticipants(id);
   if (!event) notFound();
-  const { totals, missing, sum } = summarizeOrder(event.participants);
+  const { totals, missing } = summarizeOrder(event.participants);
 
   return (
     <div className="space-y-5">
@@ -65,8 +64,7 @@ export default async function OrderPage({ params }: PageProps<"/events/[id]/best
             <tr className="text-left text-muted border-b border-border">
               <th className="px-4 sm:px-6 py-2 font-medium">#</th>
               <th className="px-2 py-2 font-medium">Name</th>
-              <th className="px-2 py-2 font-medium">Gericht</th>
-              <th className="px-2 sm:px-6 py-2 font-medium text-right">Preis</th>
+              <th className="px-2 sm:pr-6 py-2 font-medium">Gericht</th>
             </tr>
           </thead>
           <tbody>
@@ -74,26 +72,13 @@ export default async function OrderPage({ params }: PageProps<"/events/[id]/best
               <tr key={p.id} className="border-b border-border last:border-0 align-top">
                 <td className="px-4 sm:px-6 py-2 text-muted">{i + 1}</td>
                 <td className="px-2 py-2 font-medium">{p.name}</td>
-                <td className="px-2 py-2">
+                <td className="px-2 sm:pr-6 py-2">
                   {p.dish ?? <span className="text-danger">noch offen</span>}
                   {p.note && <span className="block text-xs font-medium text-gold-dark">✏️ {p.note}</span>}
-                </td>
-                <td className="px-2 sm:px-6 py-2 text-right whitespace-nowrap">
-                  {p.dishPrice ? formatEuro(p.dishPrice) : ""}
                 </td>
               </tr>
             ))}
           </tbody>
-          {sum > 0 && (
-            <tfoot>
-              <tr className="border-t-2 border-border font-semibold">
-                <td colSpan={3} className="px-4 sm:px-6 py-2">
-                  Summe Essen (ohne Getränke)
-                </td>
-                <td className="px-2 sm:px-6 py-2 text-right whitespace-nowrap">{formatEuro(sum)}</td>
-              </tr>
-            </tfoot>
-          )}
         </table>
       </section>
     </div>

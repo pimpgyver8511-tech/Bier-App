@@ -4,9 +4,15 @@ import { useMemo, useState, useTransition } from "react";
 import { saveMealChoiceAction } from "@/lib/event-actions";
 import type { MenuChoice } from "@/lib/menu";
 
-type Participant = { id: string; name: string; dish: string | null; dishPrice: number | null; note: string | null };
+type Participant = { id: string; name: string; dish: string | null; note: string | null };
 
 const OTHER = "__other";
+
+/** Beilagen/Beschreibung von der Karte, z. B. "hausgemachtes Rotkraut | Klöße". */
+function DishDescription({ text }: { text: string | null | undefined }) {
+  if (!text) return null;
+  return <p className="text-xs text-muted mt-1 leading-snug">↳ {text}</p>;
+}
 
 function euro(v: number) {
   return `${v.toFixed(2).replace(".", ",")} €`;
@@ -57,6 +63,10 @@ export function MealChoiceRow({
   removeButton?: React.ReactNode;
 }) {
   const labels = useMemo(() => new Set(choices.map((c) => c.label)), [choices]);
+  const descriptionOf = useMemo(() => {
+    const map = new Map(choices.map((c) => [c.label, c.description]));
+    return (label: string) => map.get(label) ?? null;
+  }, [choices]);
   const groups = useMemo(() => {
     const map = new Map<string, MenuChoice[]>();
     for (const c of choices) map.set(c.section, [...(map.get(c.section) ?? []), c]);
@@ -94,10 +104,16 @@ export function MealChoiceRow({
         <div className="min-w-0">
           <p className="font-medium">{participant.name}</p>
           {participant.dish ? (
-            <p className="text-sm mt-0.5">
-              🍽️ {participant.dish}
-              {participant.dishPrice ? <span className="text-muted"> · {euro(participant.dishPrice)}</span> : null}
-            </p>
+            <div className="mt-0.5">
+              {participant.dish.split(" + ").map((part) => (
+                <div key={part}>
+                  <p className="text-sm">🍽️ {part}</p>
+                  {descriptionOf(part) && (
+                    <p className="text-xs text-muted leading-snug pl-6">{descriptionOf(part)}</p>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <span className="badge badge-gold mt-1">noch nichts gewählt</span>
           )}
@@ -121,7 +137,10 @@ export function MealChoiceRow({
         <div className="mt-3 rounded-xl border border-border bg-background p-3 space-y-3">
           {hasMenu ? (
             <>
-              <DishSelect value={main} onChange={setMain} groups={groups} placeholder="— Gericht wählen —" label="Gericht" />
+              <div>
+                <DishSelect value={main} onChange={setMain} groups={groups} placeholder="— Gericht wählen —" label="Gericht" />
+                <DishDescription text={descriptionOf(main)} />
+              </div>
               {main === OTHER && (
                 <input
                   value={mainOther}
@@ -138,6 +157,7 @@ export function MealChoiceRow({
                 placeholder="— nichts weiter —"
                 label="Dazu (optional, z. B. Vorspeise, Dessert, Extra)"
               />
+              <DishDescription text={descriptionOf(extra)} />
               {extra === OTHER && (
                 <input
                   value={extraOther}

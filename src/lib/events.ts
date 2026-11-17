@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
 import { mapStatusValue, parseCsvLine, STATUS_COLUMNS } from "@/lib/spielerplus";
-import { formatEuro } from "@/lib/menu";
 
 export function formatEventDate(d: Date): string {
   return d.toLocaleString("de-DE", {
@@ -99,7 +98,7 @@ export async function importEventParticipantsFromCsv(eventId: string, csvText: s
   return { ok: true, message };
 }
 
-type OrderParticipant = { name: string; dish: string | null; dishPrice: number | null; note: string | null };
+type OrderParticipant = { name: string; dish: string | null; note: string | null };
 
 export function summarizeOrder(participants: OrderParticipant[]) {
   const counts = new Map<string, number>();
@@ -111,8 +110,7 @@ export function summarizeOrder(participants: OrderParticipant[]) {
     (a, b) => b.count - a.count || a.dish.localeCompare(b.dish, "de")
   );
   const missing = participants.filter((p) => !p.dish).map((p) => p.name);
-  const sum = participants.reduce((acc, p) => acc + (p.dishPrice ?? 0), 0);
-  return { totals, missing, sum };
+  return { totals, missing };
 }
 
 /** Bestellung als Text zum Kopieren in E-Mail/WhatsApp an das Restaurant. */
@@ -133,8 +131,7 @@ export function buildOrderText(
     ...participants.map(
       (p, i) =>
         `${i + 1}. ${p.name}: ${p.dish ?? "– noch offen –"}` +
-        (p.note ? ` – Sonderwunsch: ${p.note}` : "") +
-        (p.dishPrice ? ` – ${formatEuro(p.dishPrice)}` : "")
+        (p.note ? ` – Sonderwunsch: ${p.note}` : "")
     ),
   ];
   return lines.join("\n");
@@ -148,13 +145,12 @@ function csvField(value: string): string {
 export function buildOrderCsv(participants: OrderParticipant[]): string {
   const { totals } = summarizeOrder(participants);
   const rows = [
-    ["Nr.", "Name", "Gericht", "Änderungen / Sonderwünsche", "Preis"],
+    ["Nr.", "Name", "Gericht", "Änderungen / Sonderwünsche"],
     ...participants.map((p, i) => [
       String(i + 1),
       p.name,
       p.dish ?? "noch offen",
       p.note ?? "",
-      p.dishPrice ? p.dishPrice.toFixed(2).replace(".", ",") : "",
     ]),
     [],
     ["", "Zusammenfassung", "Anzahl"],

@@ -112,7 +112,7 @@ export function formatEuro(value: number): string {
   return `${value.toFixed(2).replace(".", ",")} €`;
 }
 
-export type MenuChoice = { label: string; price: number; section: string };
+export type MenuChoice = { label: string; price: number; section: string; description: string | null };
 
 /**
  * Auswaehlbare Gerichte (nur Eintraege mit Preis). Schnitzel stehen auf der
@@ -130,7 +130,7 @@ export function menuChoices(sections: MenuSection[]): MenuChoice[] {
       const label = prefix && !/schnitzel/i.test(name) ? `${prefix}${name}` : name;
       if (seen.has(label)) continue;
       seen.add(label);
-      choices.push({ label, price: item.price, section: section.title });
+      choices.push({ label, price: item.price, section: section.title, description: item.description });
     }
   }
   return choices;

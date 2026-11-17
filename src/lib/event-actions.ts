@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isAdmin } from "@/lib/auth";
 import { importEventParticipantsFromCsv } from "@/lib/events";
-import { fetchMenu, menuChoices } from "@/lib/menu";
 import { parseBerlinDateTimeLocal } from "@/lib/timezone";
 
 async function requireAdmin() {
@@ -94,8 +93,7 @@ export type MealChoiceResult = { ok: boolean; message?: string };
 
 /**
  * Essenswahl eines Teilnehmers - ohne Login, wie die restliche Team-
- * Uebersicht. Die Preise werden serverseitig aus der Speisekarte ermittelt,
- * nicht vom Browser uebernommen.
+ * Uebersicht. Preise werden bewusst nicht berechnet (rechnet das Restaurant).
  */
 export async function saveMealChoiceAction(
   participantId: string,
@@ -111,19 +109,11 @@ export async function saveMealChoiceAction(
     return { ok: false, message: "Die Bestellung ist bereits abgeschlossen." };
   }
   const cleaned = dishes.map((d) => d.trim().slice(0, 120)).filter(Boolean).slice(0, 3);
-  const choices = participant.event.menuUrl ? menuChoices((await fetchMenu(participant.event.menuUrl)) ?? []) : [];
-  let price = 0;
-  let priceKnown = cleaned.length > 0;
-  for (const dish of cleaned) {
-    const choice = choices.find((c) => c.label === dish);
-    if (choice) price += choice.price;
-    else priceKnown = false;
-  }
   await prisma.eventParticipant.update({
     where: { id: participantId },
     data: {
       dish: cleaned.length ? cleaned.join(" + ") : null,
-      dishPrice: priceKnown ? Math.round(price * 100) / 100 : null,
+      dishPrice: null,
       note: note.trim().slice(0, 300) || null,
     },
   });
